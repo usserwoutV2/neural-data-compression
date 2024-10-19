@@ -4,7 +4,7 @@ import torch.optim as optim
 from typing import List, Tuple
 import sys
 import os
-from SupporterModel import SupporterModel
+from  SupporterModel import SupporterModel
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -23,6 +23,7 @@ class DynamicCompressor(Encoder):
 
     def _create_vocabulary(self, input_string: str):
         # Create a vocabulary from the input string
+        # This is used to convert between characters and indices
         unique_chars = sorted(set(input_string))
         self.vocab_size = len(unique_chars)
         self.char_to_index = {char: idx for idx, char in enumerate(unique_chars)}
@@ -37,8 +38,9 @@ class DynamicCompressor(Encoder):
         return ''.join(self.index_to_char[idx] for idx in indices)
 
     def train(self, input_string: str):
-        # Train the model on the input string
+        # Train the SupporterModel on the input string
         self._create_vocabulary(input_string)
+        # Initialize the SupporterModel with the correct vocabulary size
         self.supporter_model = SupporterModel(self.hidden_size, self.hidden_size, self.vocab_size)
         self.optimizer = optim.Adam(self.supporter_model.parameters(), lr=self.learning_rate)
         self.criterion = nn.CrossEntropyLoss()
@@ -48,7 +50,7 @@ class DynamicCompressor(Encoder):
         input_tensor = torch.tensor(input_indices[:-1], dtype=torch.long).unsqueeze(0)
         target_tensor = torch.tensor(input_indices[1:], dtype=torch.long)
 
-        # Training loop
+        # Training loop: update model parameters to minimize loss
         for epoch in range(self.epochs):
             self.optimizer.zero_grad()
             output = self.supporter_model(input_tensor)
@@ -58,16 +60,18 @@ class DynamicCompressor(Encoder):
             print(f"Epoch {epoch+1}/{self.epochs}, Loss: {loss.item():.4f}")
 
     def compress(self, input_string: str) -> Tuple[bytes, List[float]]:
-        # Compress the input string
+        # Compress the input string using the trained SupporterModel
         self.train(input_string)
         
         # Prepare input tensor
         input_indices = self._string_to_indices(input_string)
         input_tensor = torch.tensor(input_indices[:-1], dtype=torch.long).unsqueeze(0)
+        
+        # Use the SupporterModel to predict probabilities
         with torch.no_grad():
             logits = self.supporter_model(input_tensor).squeeze(0)
         
-        # Calculate probabilities
+        # Calculate probabilities and compress based on predictions
         probabilities = torch.softmax(logits, dim=1)
         compressed_indices = []
         for i, prob in enumerate(probabilities):
@@ -75,30 +79,34 @@ class DynamicCompressor(Encoder):
             index = (sorted_indices == input_indices[i+1]).nonzero(as_tuple=True)[0].item()
             compressed_indices.append(index)
 
-        # Calculate frequency of each index
+        # Calculate frequency of each index for arithmetic coding
         freq = [0] * self.vocab_size
         for index in compressed_indices:
             freq[index] += 1
             
-        print("compress indices:  ",compressed_indices)
+        print("compress indices:  ", compressed_indices)
+        # Use arithmetic coding to further compress the data
         encoded_data = self._arithmetic_encode(compressed_indices, freq)
         return encoded_data, freq
 
     def decompress(self, compressed_data: bytes, freq: List[float], output_size: int) -> str:
-        # Decompress the data
+        # Decompress the data using arithmetic decoding and the SupporterModel
         decoded_indices = self._arithmetic_decode(compressed_data, freq, output_size - 1)
-        print("decompress indices:",decoded_indices)
+        print("decompress indices:", decoded_indices)
 
         decompressed_indices = [0]  # Start with an arbitrary initial value
         for i in range(output_size - 1):
+            # Use the SupporterModel to predict the next character
             input_tensor = torch.tensor(decompressed_indices, dtype=torch.long).unsqueeze(0)
             with torch.no_grad():
                 logits = self.supporter_model(input_tensor).squeeze(0)[-1]
             
-            # Calculate probabilities
+            # Calculate probabilities and select the correct character
             probs = torch.softmax(logits, dim=0)
             _, sorted_indices = torch.sort(probs, descending=True)
             decompressed_indices.append(sorted_indices[decoded_indices[i]].item())
+        
+        # Convert indices back to a string
         return self._indices_to_string(decompressed_indices)
 
 # Example usage
