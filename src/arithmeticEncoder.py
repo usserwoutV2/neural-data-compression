@@ -139,6 +139,8 @@ class ArithmeticEncoder(ArithmeticCoderBase):
 	# Note that this method merely writes data to the underlying output stream but does not close it.
 	def finish(self):
 		self.output.write(1)
+		for i in range(7):
+			self.output.write(0)
 	
 	
 	def shift(self):

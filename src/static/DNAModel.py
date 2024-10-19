@@ -2,7 +2,7 @@ import numpy as np
 import os
 import sys
 from typing import List
-
+import time
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from train import create_and_train_model, load_model, save_model
 
@@ -32,6 +32,9 @@ class DNAModel:
 
     def predict_next_chars(self, input_string: str, sequence_length: int = 20) -> List[str]:
         input_indices = np.array([[self.char_to_index.get(char, 0) for char in input_string[-sequence_length:]]])
+        start_time = time.time()
         predictions = self.model.predict(input_indices, verbose=0)[0]
+        end_time = time.time()
+        print(f"Prediction took {end_time - start_time:.2f} seconds.")
         top_indices = predictions.argsort()[-4:][::-1]
         return [self.index_to_char[idx] for idx in top_indices]

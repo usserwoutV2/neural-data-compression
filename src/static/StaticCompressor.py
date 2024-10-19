@@ -2,10 +2,12 @@ import os
 import sys
 import io
 from typing import List
+import time
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from arithmeticEncoder import SimpleFrequencyTable, ArithmeticEncoder, ArithmeticDecoder, BitOutputStream, BitInputStream
 from DNAModel import DNAModel
+from exampleData import sample1
 
 class StaticCompressor:
     def __init__(self, model: DNAModel, alphabet: str = 'ACGT'):
@@ -94,10 +96,13 @@ class StaticCompressor:
 
 def main():
     input_string = "AAGAAGATAGGCACTTTGTTACCCAAAAAACCACCCCTGAGT"
-    model = DNAModel(input_string)
+    model = DNAModel(sample1)
     compressor = StaticCompressor(model)
 
+    start_time = time.time()
     compressed_data = compressor.compress(input_string)
+    end_time = time.time()
+    print(f"Compression time: {end_time - start_time:.2f} seconds")
     print("Compressed data:", compressed_data)
 
     # There is still an issue with the decompression, sometimes the ending is not correct
