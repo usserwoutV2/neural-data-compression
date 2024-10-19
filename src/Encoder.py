@@ -30,3 +30,16 @@ class Encoder:
           decoded_indices.append(symbol)
 
       return decoded_indices
+  
+  
+  
+  
+  def _arithmetic_encode_str(self, input_string:str):
+    input_indices = [ord(c) for c in input_string]
+    freq = [0] * 256
+    for index in input_indices:
+        freq[index] += 1
+    
+    encoder = Encoder()
+    compressed = encoder._arithmetic_encode(input_indices, freq)
+    return compressed

@@ -9,7 +9,7 @@ from  SupporterModel import SupporterModel
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from Encoder import Encoder
-
+from exampleData import sample2,sample1,sample3
 
 class DynamicCompressor(Encoder):
     def __init__(self, hidden_size: int = 64, learning_rate: float = 0.001, epochs: int = 10):
@@ -84,7 +84,7 @@ class DynamicCompressor(Encoder):
         for index in compressed_indices:
             freq[index] += 1
             
-        print("compress indices:  ", compressed_indices)
+        #print("compress indices:  ", compressed_indices)
         # Use arithmetic coding to further compress the data
         encoded_data = self._arithmetic_encode(compressed_indices, freq)
         return encoded_data, freq
@@ -92,7 +92,7 @@ class DynamicCompressor(Encoder):
     def decompress(self, compressed_data: bytes, freq: List[float], output_size: int) -> str:
         # Decompress the data using arithmetic decoding and the SupporterModel
         decoded_indices = self._arithmetic_decode(compressed_data, freq, output_size - 1)
-        print("decompress indices:", decoded_indices)
+        #print("decompress indices:", decoded_indices)
 
         decompressed_indices = [0]  # Start with an arbitrary initial value
         for i in range(output_size - 1):
@@ -111,16 +111,29 @@ class DynamicCompressor(Encoder):
 
 # Example usage
 def main():
-    input_string = "AAGAAGATAGGCACTTTGTTACCCAAAAAACCACCCCTGAGT"
-    compressor = DynamicCompressor(hidden_size=64, epochs=10)
+    input_string = sample2
+    print(f"Original data size: {len(input_string)} bytes")
+    
+    compressor = DynamicCompressor(hidden_size=64, epochs=10, learning_rate=0.001)
     
     compressed_data, freq = compressor.compress(input_string)
     print(f"Compressed data size: {len(compressed_data)} bytes")
     
-    decompressed_string = compressor.decompress(compressed_data, freq, len(input_string))
-    print(f"Original string: {input_string}")
-    print(f"Decompressed string: {decompressed_string}")
-    print(f"Compression successful: {input_string == decompressed_string}")
+    # decompressed_string = compressor.decompress(compressed_data, freq, len(input_string))
+    # # print(f"Original string: {input_string}")
+    # # print(f"Decompressed string: {decompressed_string}")
+    # print(f"Compression successful: {input_string == decompressed_string}")
+    
+    
+def compress_without_model():
+    input_string = sample2
+    print(f"Original data size: {len(input_string)} bytes")
+    
+    encoder = Encoder()
+    compressed = encoder._arithmetic_encode_str(input_string)
+    print(f"Compressed data size (no support model): {len(compressed)} bytes")
+    
 
 if __name__ == "__main__":
     main()
+    compress_without_model()
