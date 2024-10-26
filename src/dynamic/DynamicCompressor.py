@@ -10,6 +10,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from Encoder import Encoder
 from exampleData import sample2,sample1,sample3
+from stats import calculate_frequencies
 
 class DynamicCompressor(Encoder):
     def __init__(self, hidden_size: int = 64, learning_rate: float = 0.001, epochs: int = 10):
@@ -111,7 +112,7 @@ class DynamicCompressor(Encoder):
 
 # Example usage
 def main():
-    input_string = sample2
+    input_string = sample3
     print(f"Original data size: {len(input_string)} bytes")
     
     compressor = DynamicCompressor(hidden_size=64, epochs=10, learning_rate=0.001)
@@ -126,7 +127,7 @@ def main():
     
     
 def compress_without_model():
-    input_string = sample2
+    input_string = sample3
     print(f"Original data size: {len(input_string)} bytes")
     
     encoder = Encoder()

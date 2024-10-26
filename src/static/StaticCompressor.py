@@ -8,6 +8,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from arithmeticEncoder import SimpleFrequencyTable, ArithmeticEncoder, ArithmeticDecoder, BitOutputStream, BitInputStream
 from DNAModel import DNAModel
 from exampleData import sample1
+from stats import calculate_frequencies
 
 class StaticCompressor:
     def __init__(self, model: DNAModel, alphabet: str = 'ACGT'):
@@ -18,6 +19,7 @@ class StaticCompressor:
 
     def compress(self, input_string: str) -> bytes:
         indices = self._translate_to_index(input_string)
+        calculate_frequencies(indices)
         return self._arithmetic_encode(indices)
 
     def decompress(self, compressed_data: bytes, output_size: int, first_n_characters: str) -> str:
@@ -93,6 +95,12 @@ class StaticCompressor:
             decoded_list.append(symbol)
 
         return decoded_list
+
+
+def load_dataset(filename):
+    with open(filename, 'r') as file:
+        return file.read()
+    
 
 def main():
     dataset_path = 'datasets/files_to_be_compressed/celegchr_ultrasmall.txt'
