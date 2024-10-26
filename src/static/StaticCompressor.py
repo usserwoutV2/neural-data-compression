@@ -95,8 +95,10 @@ class StaticCompressor:
         return decoded_list
 
 def main():
-    input_string = "AAGAAGATAGGCACTTTGTTACCCAAAAAACCACCCCTGAGT"
-    model = DNAModel(sample1)
+    dataset_path = '/user/gent/465/vsc46596/ML-project/datasets/files_to_be_compressed/celegchr_small.txt'
+    with open(dataset_path, 'r') as file:
+        input_string = file.read()
+    model = DNAModel(input_string)
     compressor = StaticCompressor(model)
 
     start_time = time.time()

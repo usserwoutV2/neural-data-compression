@@ -1,0 +1,65 @@
+-------------------------------------------------------------------------------
+There are messages associated with the following module(s):
+-------------------------------------------------------------------------------
+
+GCCcore/11.3.0:
+   ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+   + ___________________________________ + + / This module will soon no
+   longer \ + + \ be available on this cluster! / + +
+   ----------------------------------- + + \ ^__^ + + \ (xx)\_______ + +
+   (__)\ )\/\ + + U ||----w | + + || || + + + + Only modules installed with
+   a recent toolchain will still be available + + when this cluster has been
+   migrated to the RHEL 9 operating system. + + Recent toolchains include
+   GCC(core)/12.3.0, gompi/2023a, foss/2023a, + + gfbf/2023a, iimpi/2023a,
+   intel/2023a, and newer versions. + + + + You should update your workflow
+   or job script to use more recent software installations, + + or accept
+   that the modules you currently rely on will soon no longer be available.
+   + + + + To request a more recent version of the software you are using, +
+   + please submit a software installation request via: + +
+   https://www.ugent.be/hpc/en/support/software-installation-request + + + +
+   The HPC-UGent Tier-2 clusters running RHEL 8 will be migrated to RHEL 9.
+   + + For more information, see https://docs.hpc.ugent.be/rhel9/ . + + + +
+   If you have any questions, please contact hpc@ugent.be . + + + ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+-------------------------------------------------------------------------------
+
+-------------------------------------------------------------------------------
+There are messages associated with the following module(s):
+-------------------------------------------------------------------------------
+
+GCCcore/11.3.0:
+   ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+   + ___________________________________ + + / This module will soon no
+   longer \ + + \ be available on this cluster! / + +
+   ----------------------------------- + + \ ^__^ + + \ (xx)\_______ + +
+   (__)\ )\/\ + + U ||----w | + + || || + + + + Only modules installed with
+   a recent toolchain will still be available + + when this cluster has been
+   migrated to the RHEL 9 operating system. + + Recent toolchains include
+   GCC(core)/12.3.0, gompi/2023a, foss/2023a, + + gfbf/2023a, iimpi/2023a,
+   intel/2023a, and newer versions. + + + + You should update your workflow
+   or job script to use more recent software installations, + + or accept
+   that the modules you currently rely on will soon no longer be available.
+   + + + + To request a more recent version of the software you are using, +
+   + please submit a software installation request via: + +
+   https://www.ugent.be/hpc/en/support/software-installation-request + + + +
+   The HPC-UGent Tier-2 clusters running RHEL 8 will be migrated to RHEL 9.
+   + + For more information, see https://docs.hpc.ugent.be/rhel9/ . + + + +
+   If you have any questions, please contact hpc@ugent.be . + + + ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+-------------------------------------------------------------------------------
+
+2024-10-25 10:24:16.577571: I tensorflow/core/util/port.cc:153] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+2024-10-25 10:24:16.579392: I external/local_xla/xla/tsl/cuda/cudart_stub.cc:32] Could not find cuda drivers on your machine, GPU will not be used.
+2024-10-25 10:24:16.587724: I external/local_xla/xla/tsl/cuda/cudart_stub.cc:32] Could not find cuda drivers on your machine, GPU will not be used.
+2024-10-25 10:24:16.604423: E external/local_xla/xla/stream_executor/cuda/cuda_fft.cc:485] Unable to register cuFFT factory: Attempting to register factory for plugin cuFFT when one has already been registered
+2024-10-25 10:24:16.626160: E external/local_xla/xla/stream_executor/cuda/cuda_dnn.cc:8454] Unable to register cuDNN factory: Attempting to register factory for plugin cuDNN when one has already been registered
+2024-10-25 10:24:16.632419: E external/local_xla/xla/stream_executor/cuda/cuda_blas.cc:1452] Unable to register cuBLAS factory: Attempting to register factory for plugin cuBLAS when one has already been registered
+2024-10-25 10:24:16.653807: I tensorflow/core/platform/cpu_feature_guard.cc:210] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+To enable the following instructions: AVX2 AVX512F AVX512_VNNI FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
+2024-10-25 10:24:29.095728: W tensorflow/compiler/tf2tensorrt/utils/py_utils.cc:38] TF-TRT Warning: Could not find TensorRT
+/kyukon/home/gent/465/vsc46596/venv_donphan/lib/python3.10/site-packages/keras/src/layers/core/embedding.py:90: UserWarning: Argument `input_length` is deprecated. Just remove it.
+  warnings.warn(
+2024-10-25 10:28:07.070021: W tensorflow/core/common_runtime/gpu/gpu_device.cc:2343] Cannot dlopen some GPU libraries. Please make sure the missing libraries mentioned above are installed properly if you would like to use GPU. Follow the guide at https://www.tensorflow.org/install/gpu for how to download and setup the required libraries for your platform.
+Skipping registering GPU devices...
+2024-10-25 10:28:17.697835: E tensorflow/core/util/util.cc:131] oneDNN supports DT_HALF only on platforms with AVX-512. Falling back to the default Eigen-based implementation if present.
+slurmstepd: error: *** JOB 20098900 ON node4016.donphan.os CANCELLED AT 2024-10-26T13:48:41 ***

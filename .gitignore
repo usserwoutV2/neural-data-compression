@@ -5,3 +5,4 @@ datasets/files_to_be_compressed/*
 **/__pycache__/*
 **/*.pyc
 **/.ds_store
+train_static.o20098900
