@@ -35,6 +35,6 @@ class DNAModel:
         start_time = time.time()
         predictions = self.model.predict(input_indices, verbose=0)[0]
         end_time = time.time()
-        print(f"Prediction took {end_time - start_time:.2f} seconds.")
+        #print(f"Prediction took {end_time - start_time:.2f} seconds.")
         top_indices = predictions.argsort()[-4:][::-1]
         return [self.index_to_char[idx] for idx in top_indices]

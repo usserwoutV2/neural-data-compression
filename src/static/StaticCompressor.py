@@ -35,7 +35,7 @@ class StaticCompressor:
         for i in range(model_input_length, len(input_string) - 1):
             substr = input_string[i-19:i+1]
             predicted = self.model.predict_next_chars(substr)
-            print(f"After '{substr}', predicted next chars: {predicted} Expected: {input_string[i + 1].lower()}")
+            #print(f"After '{substr}', predicted next chars: {predicted} Expected: {input_string[i + 1].lower()}")
             
             index = predicted.index(input_string[i + 1].upper())
             output.append(index)
@@ -58,7 +58,7 @@ class StaticCompressor:
         for i in range(len(input_indices)):
             substr = "".join(output[model_input_length+i-20:model_input_length+i+1])
             predicted = self.model.predict_next_chars(substr)
-            print(f"After '{substr}', predicted next chars: {predicted}")
+            #print(f"After '{substr}', predicted next chars: {predicted}")
             output.append(predicted[input_indices[i]])
 
         return "".join(output)
@@ -95,7 +95,7 @@ class StaticCompressor:
         return decoded_list
 
 def main():
-    dataset_path = '/user/gent/465/vsc46596/ML-project/datasets/files_to_be_compressed/celegchr_small.txt'
+    dataset_path = 'datasets/files_to_be_compressed/celegchr_ultrasmall.txt'
     with open(dataset_path, 'r') as file:
         input_string = file.read()
     model = DNAModel(input_string)

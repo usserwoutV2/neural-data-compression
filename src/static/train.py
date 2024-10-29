@@ -26,15 +26,15 @@ def create_sequences(text, sequence_length):
     
     return X, y, char_to_index, index_to_char
 
-def create_and_train_model(text, sequence_length=20, epochs=4, batch_size=1024):
+def create_and_train_model(text, sequence_length=20, epochs=2, batch_size=64, lstm=128, embedding_dimension=16):
     X, y, char_to_index, index_to_char = create_sequences(text, sequence_length)
     
     vocab_size = len(char_to_index)
     
     model = Sequential([
-        Embedding(vocab_size, 16, input_length=sequence_length),
-        LSTM(128, return_sequences=True),
-        LSTM(128),
+        Embedding(vocab_size, embedding_dimension, input_length=sequence_length),
+        LSTM(lstm, return_sequences=True),
+        LSTM(lstm),
         Dense(vocab_size, activation='softmax')
     ])
     
