@@ -1,4 +1,3 @@
-
 from typing import List
 import io
 from arithmeticEncoder import SimpleFrequencyTable, ArithmeticEncoder, ArithmeticDecoder, BitOutputStream, BitInputStream
@@ -42,4 +41,46 @@ class Encoder:
     
     encoder = Encoder()
     compressed = encoder._arithmetic_encode(input_indices, freq)
-    return compressed
+    return 
+
+
+class AdaptiveArithmeticEncoder:
+    def __init__(self, alphabet: str):
+        self.alphabet = alphabet
+        self.freqs = SimpleFrequencyTable([1] * len(alphabet))
+        self.encoder = None
+        self.output_stream = None
+        self.bit_output = None
+
+    def start_encoding(self):
+        self.output_stream = io.BytesIO()
+        self.bit_output = BitOutputStream(self.output_stream)
+        self.encoder = ArithmeticEncoder(32, self.bit_output)
+
+    def encode_symbol(self, symbol: str):
+        if self.encoder is None:
+            raise ValueError("Encoder not started. Call start_encoding() first.")
+        index = self.alphabet.index(symbol)
+        self.encoder.write(self.freqs, index)
+
+    def finish_encoding(self) -> bytes:
+        if self.encoder is None:
+            raise ValueError("Encoder not started. Call start_encoding() first.")
+        self.encoder.finish()
+        self.bit_output.close()
+        return self.output_stream.getvalue()
+
+    def decode(self, encoded_data: bytes, output_size: int) -> List[int]:
+        input_stream = io.BytesIO(encoded_data)
+        bit_input = BitInputStream(input_stream)
+        decoder = ArithmeticDecoder(32, bit_input)
+
+        decoded_indices = []
+        for _ in range(output_size):
+            symbol = decoder.read(self.freqs)
+            decoded_indices.append(symbol)
+            self.freqs.increment(symbol)
+
+        return decoded_indices
+
+

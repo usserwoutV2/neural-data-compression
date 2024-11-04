@@ -95,25 +95,36 @@ class DynamicCompressor(Encoder):
     def decompress(self, compressed_data: bytes, freq: List[float], output_size: int) -> str:
         # Decompress the data using arithmetic decoding and the SupporterModel
         decoded_indices = self._arithmetic_decode(compressed_data, freq, output_size - 1)
-        #print("decompress indices:", decoded_indices)
 
-        decompressed_indices = [0]  # Start with an arbitrary initial value
-        input_tensor = torch.tensor(decompressed_indices, dtype=torch.long).unsqueeze(0)
+        max_seq_len = 20  # Define a fixed maximum sequence length
+        decompressed_indices = []  # Initialize the list to hold decompressed indices
+
+        # Initialize the input buffer with zeros or a start token
+        input_buffer = [0] * max_seq_len
+        input_tensor = torch.tensor([input_buffer], dtype=torch.long)
+
         supporter_model = self.supporter_model
+        supporter_model.eval()  # Set the model to evaluation mode
 
         for i in range(output_size - 1):
+            print(f"Decoding character {i+1}/{output_size-1}")
             # Use the SupporterModel to predict the next character
             with torch.no_grad():
-                logits = supporter_model(input_tensor).squeeze(0)[-1]
-                            
+                # Get the model's output for the last position
+                logits = supporter_model(input_tensor)[0, -1]
+
             # Calculate probabilities and select the correct character
             probs = torch.softmax(logits, dim=0)
             _, sorted_indices = torch.sort(probs, descending=True)
             next_index = sorted_indices[decoded_indices[i]].item()
             decompressed_indices.append(next_index)
-            
-            # Update the input tensor in place
-            input_tensor = torch.cat((input_tensor, torch.tensor([[next_index]], dtype=torch.long)), dim=1)
+
+            # Update the input buffer with the new index
+            input_buffer.append(next_index)
+            # Keep only the last 'max_seq_len' elements
+            input_buffer = input_buffer[-max_seq_len:]
+            # Update the input tensor
+            input_tensor = torch.tensor([input_buffer], dtype=torch.long)
 
         # Convert indices back to a string
         return self._indices_to_string(decompressed_indices)
@@ -154,18 +165,18 @@ def main():
     print(f"Original data size: {len(input_string)} bytes")
     calculate_frequencies(input_string)
     
-    compressor = DynamicCompressor(hidden_size=64, epochs=50, learning_rate=0.005)
+    compressor = DynamicCompressor(hidden_size=64, epochs=20, learning_rate=0.005)
     
     compressed_data, freq = compressor.compress(input_string)
     compressor.save_compressed_data("compressed_data.pkl", compressed_data, freq)
     print(f"Compressed data size: {len(compressed_data)} bytes")
     
     
-    # decompressor = DynamicCompressor(hidden_size=64, epochs=20, learning_rate=0.005)
+    decompressor = DynamicCompressor(hidden_size=64, epochs=20, learning_rate=0.005)
     
-    # compressed_data, freq  = decompressor.load_compressed_data("compressed_data.pkl")
+    compressed_data, freq  = decompressor.load_compressed_data("compressed_data.pkl")
 
-    # print(f"Compressed data size: {len(compressed_data)} bytes")
+    print(f"Compressed data size: {len(compressed_data)} bytes")
     
     # decompressed_string = decompressor.decompress(compressed_data, freq, len(input_string))
     # # print(f"Original string: {input_string}")

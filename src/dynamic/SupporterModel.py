@@ -14,9 +14,9 @@ class SupporterModel(nn.Module):
             nn.Linear(hidden_size, vocab_size)
         )
         self.residual_nn = nn.Sequential(
-            nn.Linear(hidden_size, hidden_size),
-            nn.ReLU(),
-            nn.Linear(hidden_size, vocab_size)
+            ResidualBlock(hidden_size, hidden_size),
+            ResidualBlock(hidden_size, hidden_size),
+            nn.Linear(hidden_size, vocab_size),
         )
         
         # We use this to reduce the precision of the input tensor for smaller model size
@@ -33,18 +33,6 @@ class SupporterModel(nn.Module):
         x = self.dequant(x)
         return x
 
-    def forward(self, x):
-        # Convert input indices to embeddings
-        embedded = self.embedding(x)
-        
-        # Process embeddings through each sub-network
-        linear_out = self.linear_nn(embedded)
-        dense_out = self.dense_nn(embedded)
-        residual_out = self.residual_nn(embedded)
-                
-        # Combine outputs from all sub-networks
-        
-        return  self.dequant(linear_out +  dense_out + residual_out)
 
 
 class ResidualBlock(nn.Module):

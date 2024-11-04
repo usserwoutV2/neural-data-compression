@@ -35,10 +35,6 @@ class DNAModel:
     def predict_next_chars(self, input_string: str, sequence_length: int = 20) -> List[str]:
         input_indices = np.array([[self.char_to_index.get(char, 0) for char in input_string[-sequence_length:]]])
         predictions = self.model.predict(input_indices, verbose=0)[0]
-<<<<<<< HEAD
-        end_time = time.time()
         #print(f"Prediction took {end_time - start_time:.2f} seconds.")
-=======
->>>>>>> a857832 (Updated the dynamic compressor)
         top_indices = predictions.argsort()[-4:][::-1]
         return [self.index_to_char[idx] for idx in top_indices]
