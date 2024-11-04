@@ -41,13 +41,13 @@ class Encoder:
     
     encoder = Encoder()
     compressed = encoder._arithmetic_encode(input_indices, freq)
-    return 
+    return compressed
 
 
 class AdaptiveArithmeticEncoder:
-    def __init__(self, alphabet: str):
-        self.alphabet = alphabet
-        self.freqs = SimpleFrequencyTable([1] * len(alphabet))
+    def __init__(self, alphabet_size: int):
+        self.alphabet_size = alphabet_size
+        self.freqs = SimpleFrequencyTable([1] * alphabet_size)
         self.encoder = None
         self.output_stream = None
         self.bit_output = None
@@ -57,17 +57,16 @@ class AdaptiveArithmeticEncoder:
         self.bit_output = BitOutputStream(self.output_stream)
         self.encoder = ArithmeticEncoder(32, self.bit_output)
 
-    def encode_symbol(self, symbol: str):
+    def encode_symbol(self, symbol: int):
         if self.encoder is None:
             raise ValueError("Encoder not started. Call start_encoding() first.")
-        index = self.alphabet.index(symbol)
-        self.encoder.write(self.freqs, index)
+        self.encoder.write(self.freqs, symbol)
+        self.freqs.increment(symbol)
 
     def finish_encoding(self) -> bytes:
         if self.encoder is None:
             raise ValueError("Encoder not started. Call start_encoding() first.")
         self.encoder.finish()
-        self.bit_output.close()
         return self.output_stream.getvalue()
 
     def decode(self, encoded_data: bytes, output_size: int) -> List[int]:

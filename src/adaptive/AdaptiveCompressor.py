@@ -4,7 +4,9 @@ import torch.optim as optim
 from typing import List, Tuple
 import sys
 import os
-from tqdm import tqdm  # Import tqdm for progress bar
+from tqdm import tqdm  
+import random
+import numpy as np
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from Encoder import Encoder, AdaptiveArithmeticEncoder
@@ -12,8 +14,26 @@ from dynamic.SupporterModel import SupporterModel
 from exampleData import sample4
 from stats import calculate_frequencies
 
+def set_seed(seed: int):
+    # Set the seed for PyTorch
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)  # if you are using multi-GPU.
+    
+    # Set the seed for NumPy
+    np.random.seed(seed)
+    
+    # Set the seed for Python's built-in random module
+    random.seed(seed)
+    
+    # Ensure deterministic behavior in PyTorch
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+    
 class AdaptiveCompressor(Encoder):
     def __init__(self, hidden_size: int = 64, learning_rate: float = 0.001):
+        set_seed(42)
         self.hidden_size = hidden_size
         self.learning_rate = learning_rate
         self.char_to_index = {}
@@ -22,34 +42,37 @@ class AdaptiveCompressor(Encoder):
         self.supporter_model = None
         self.optimizer = None
         self.criterion = nn.CrossEntropyLoss()
+        self.tensor_size = 1
 
-    def _create_vocabulary(self, input_string: str):
-        unique_chars = sorted(set(input_string))
-        self.vocab_size = len(unique_chars)
-        self.char_to_index = {char: idx for idx, char in enumerate(unique_chars)}
-        self.index_to_char = {idx: char for idx, char in enumerate(unique_chars)}
+    def _create_vocabulary(self):
+        self.alphabet = [chr(i) for i in range(128)]
+        self.vocab_size = len(self.alphabet)
         self.supporter_model = SupporterModel(self.hidden_size, self.hidden_size, self.vocab_size)
         self.optimizer = optim.Adam(self.supporter_model.parameters(), lr=self.learning_rate)
 
     def _string_to_indices(self, input_string: str) -> List[int]:
-        return [self.char_to_index[char] for char in input_string]
+        return [ord(char) for char in input_string]
 
     def _indices_to_string(self, indices: List[int]) -> str:
-        return ''.join(self.index_to_char[idx] for idx in indices)
+        return ''.join(chr(idx) for idx in indices)
 
     def compress(self, input_string: str) -> Tuple[bytes, List[float], dict, dict]:
-        self._create_vocabulary(input_string)
+        self._create_vocabulary()
         input_indices = self._string_to_indices(input_string)
         compressed_indices = [input_indices[0]]  # Start with first character
         freq = [1] * self.vocab_size
         
-        adaptive_encoder = AdaptiveArithmeticEncoder(self.index_to_char)
+        adaptive_encoder = AdaptiveArithmeticEncoder(128)
         adaptive_encoder.start_encoding()
         
-        for i in tqdm(range(len(input_indices) - 1), desc="Compressing"):
-            current_index = input_indices[i]
-            target_index = input_indices[i + 1]
-            input_tensor = torch.tensor([[current_index]], dtype=torch.long)
+        input_buffer = input_indices[:self.tensor_size]
+        prefix = bytes(input_buffer)
+        del_me = []
+        
+        for i in tqdm(range(self.tensor_size, len(input_indices)), desc="Compressing"):
+            current_indices = input_buffer[-self.tensor_size:]
+            target_index = input_indices[i]
+            input_tensor = torch.tensor([current_indices], dtype=torch.long)
             
             # Forward pass
             output = self.supporter_model(input_tensor)
@@ -58,6 +81,7 @@ class AdaptiveCompressor(Encoder):
             # Get the rank of target_index in sorted probabilities
             probs_and_indices = list(enumerate(probabilities[0].tolist()))
             probs_and_indices.sort(key=lambda x: x[1], reverse=True)
+    
             rank = next(i for i, (idx, _) in enumerate(probs_and_indices) if idx == target_index)
             compressed_indices.append(rank)
             
@@ -68,25 +92,29 @@ class AdaptiveCompressor(Encoder):
             self.optimizer.step()
             
             freq[target_index] += 1
-            adaptive_encoder.encode_symbol(self.index_to_char[target_index])
-
+            adaptive_encoder.encode_symbol(rank)
+            
+            # Update the input buffer
+            input_buffer.append(target_index)
+            del_me.append(rank)
+            
+        
+        calculate_frequencies(del_me)
+            
         encoded_data = adaptive_encoder.finish_encoding()
-        return encoded_data, freq, self.char_to_index, self.index_to_char
+        return prefix + encoded_data, freq, self.char_to_index, self.index_to_char
 
     def decompress(self, compressed_data: bytes, freq: List[float], char_to_index: dict, index_to_char: dict, output_size: int) -> str:
-        self.char_to_index = char_to_index
-        self.index_to_char = index_to_char
-        self.vocab_size = len(self.char_to_index)
-        self.supporter_model = SupporterModel(self.hidden_size, self.hidden_size, self.vocab_size)
-        self.optimizer = optim.Adam(self.supporter_model.parameters(), lr=self.learning_rate)
+        self._create_vocabulary()
         
-        adaptive_decoder = AdaptiveArithmeticEncoder(self.index_to_char)
-        decoded_indices = adaptive_decoder.decode(compressed_data, output_size)
-        decompressed_indices = [decoded_indices[0]]  # Start with first character
+        adaptive_decoder = AdaptiveArithmeticEncoder(128)
+        decoded_indices = adaptive_decoder.decode(compressed_data[self.tensor_size:], output_size - self.tensor_size)
+        decompressed_indices = list(compressed_data[:self.tensor_size])
         
-        for i in range(1, len(decoded_indices)):
-            current_index = decompressed_indices[-1]
-            input_tensor = torch.tensor([[current_index]], dtype=torch.long)
+        for i in tqdm(range(self.tensor_size, len(decoded_indices)+1), desc="Decompressing"):
+            current_indices = decompressed_indices[-1:]
+            input_tensor = torch.tensor([current_indices], dtype=torch.long)
+            
             
             # Forward pass
             output = self.supporter_model(input_tensor)
@@ -95,7 +123,8 @@ class AdaptiveCompressor(Encoder):
             # Get the character at rank decoded_indices[i]
             probs_and_indices = list(enumerate(probabilities[0].tolist()))
             probs_and_indices.sort(key=lambda x: x[1], reverse=True)
-            next_index = probs_and_indices[decoded_indices[i]][0]
+ 
+            next_index = probs_and_indices[decoded_indices[i - self.tensor_size]][0]
             decompressed_indices.append(next_index)
             
             # Train on predicted character
@@ -103,12 +132,16 @@ class AdaptiveCompressor(Encoder):
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
-
+        
         return self._indices_to_string(decompressed_indices)
 
-# Example usage
+# TODO:
+# - I still need to add the length to the compression output
+# - Optimize stuff
+
 def main():
-    input_string = sample4[:1_000]
+    
+    input_string = sample4
     print(f"Original data size: {len(input_string)} bytes")
     calculate_frequencies(input_string)
 
@@ -116,10 +149,11 @@ def main():
     compressed_data, freq, char_to_index, index_to_char = compressor.compress(input_string)
     print(f"Compressed data size: {len(compressed_data)} bytes")
 
+
     decompressor = AdaptiveCompressor(hidden_size=64, learning_rate=0.005)
     decompressed_string = decompressor.decompress(compressed_data, freq, char_to_index, index_to_char, len(input_string))
     
-    print(input_string )
+    print(input_string)
     print("--------------------")
     print(decompressed_string)
     
@@ -128,15 +162,13 @@ def main():
     else:
         print("Decompression successful!")
 
-    
 def compress_without_model():
-    input_string = sample4[:1_000]
+    input_string = sample4
     
     encoder = Encoder()
     compressed = encoder._arithmetic_encode_str(input_string)
     print(f"Compressed data size (no support model): {len(compressed)} bytes")
-  
-
 
 if __name__ == "__main__":
     main()
+    compress_without_model()
