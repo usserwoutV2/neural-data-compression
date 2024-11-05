@@ -7,7 +7,7 @@ import os
 from tqdm import tqdm  
 import random
 import numpy as np
-
+import time
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from Encoder import Encoder, AdaptiveArithmeticEncoder
 from dynamic.SupporterModel import SupporterModel
@@ -56,10 +56,12 @@ class AdaptiveCompressor(Encoder):
     def _indices_to_string(self, indices: List[int]) -> str:
         return ''.join(chr(idx) for idx in indices)
 
+
+
     def compress(self, input_string: str) -> Tuple[bytes, List[float], dict, dict]:
         self._create_vocabulary()
         input_indices = self._string_to_indices(input_string)
-        compressed_indices = [input_indices[0]]  # Start with first character
+        compressed_indices = [input_indices[0]]
         freq = [1] * self.vocab_size
         
         adaptive_encoder = AdaptiveArithmeticEncoder(128)
@@ -76,13 +78,12 @@ class AdaptiveCompressor(Encoder):
             
             # Forward pass
             output = self.supporter_model(input_tensor)
-            probabilities = torch.softmax(output.squeeze(0), dim=1)
+            probabilities = torch.softmax(output.squeeze(0), dim=1)[0]
             
-            # Get the rank of target_index in sorted probabilities
-            probs_and_indices = list(enumerate(probabilities[0].tolist()))
-            probs_and_indices.sort(key=lambda x: x[1], reverse=True)
-    
-            rank = next(i for i, (idx, _) in enumerate(probs_and_indices) if idx == target_index)
+            target_prob = probabilities[target_index].item()
+            
+            # Count how many probabilities are higher than the target_prob
+            rank = (probabilities > target_prob).sum().item()
             compressed_indices.append(rank)
             
             # Train on actual next character
@@ -102,29 +103,32 @@ class AdaptiveCompressor(Encoder):
         calculate_frequencies(del_me)
             
         encoded_data = adaptive_encoder.finish_encoding()
-        return prefix + encoded_data, freq, self.char_to_index, self.index_to_char
+        # Append the size of the input to the output
+        input_size_bytes = len(input_string).to_bytes(8, byteorder='big')
 
-    def decompress(self, compressed_data: bytes, freq: List[float], char_to_index: dict, index_to_char: dict, output_size: int) -> str:
+        return input_size_bytes + prefix + encoded_data
+
+    def decompress(self, compressed_data: bytes) -> str:
         self._create_vocabulary()
-        
+        output_size = int.from_bytes(compressed_data[:8], byteorder='big')
+
         adaptive_decoder = AdaptiveArithmeticEncoder(128)
-        decoded_indices = adaptive_decoder.decode(compressed_data[self.tensor_size:], output_size - self.tensor_size)
-        decompressed_indices = list(compressed_data[:self.tensor_size])
+        decoded_indices = adaptive_decoder.decode(compressed_data[self.tensor_size + 8:], output_size - self.tensor_size)
+        decompressed_indices = list(compressed_data[8:8+self.tensor_size])
         
         for i in tqdm(range(self.tensor_size, len(decoded_indices)+1), desc="Decompressing"):
-            current_indices = decompressed_indices[-1:]
+            current_indices = decompressed_indices[-self.tensor_size:]
             input_tensor = torch.tensor([current_indices], dtype=torch.long)
-            
             
             # Forward pass
             output = self.supporter_model(input_tensor)
-            probabilities = torch.softmax(output.squeeze(0), dim=1)
+            probabilities = torch.softmax(output.squeeze(0), dim=1)[0]
             
-            # Get the character at rank decoded_indices[i]
-            probs_and_indices = list(enumerate(probabilities[0].tolist()))
-            probs_and_indices.sort(key=lambda x: x[1], reverse=True)
- 
-            next_index = probs_and_indices[decoded_indices[i - self.tensor_size]][0]
+            # Get the sorted indices of probabilities in descending order
+            sorted_indices = torch.argsort(probabilities, descending=True)
+            
+            # Get the character at rank decoded_indices[i - self.tensor_size]
+            next_index = sorted_indices[decoded_indices[i - self.tensor_size]].item()
             decompressed_indices.append(next_index)
             
             # Train on predicted character
@@ -136,22 +140,25 @@ class AdaptiveCompressor(Encoder):
         return self._indices_to_string(decompressed_indices)
 
 # TODO:
-# - I still need to add the length to the compression output
 # - Optimize stuff
 
 def main():
     
-    input_string = sample4
+    input_string = sample4[:1000]
     print(f"Original data size: {len(input_string)} bytes")
     calculate_frequencies(input_string)
+    
+    start_time = time.time()
 
     compressor = AdaptiveCompressor(hidden_size=64, learning_rate=0.005)
-    compressed_data, freq, char_to_index, index_to_char = compressor.compress(input_string)
+    compressed_data = compressor.compress(input_string)
+    print(f"Compression took {time.time() - start_time:.2f} seconds")
     print(f"Compressed data size: {len(compressed_data)} bytes")
 
-
+    start_time = time.time()
     decompressor = AdaptiveCompressor(hidden_size=64, learning_rate=0.005)
-    decompressed_string = decompressor.decompress(compressed_data, freq, char_to_index, index_to_char, len(input_string))
+    decompressed_string = decompressor.decompress(compressed_data)
+    print(f"Decompression took {time.time() - start_time:.2f} seconds")
     
     print(input_string)
     print("--------------------")
@@ -163,7 +170,7 @@ def main():
         print("Decompression successful!")
 
 def compress_without_model():
-    input_string = sample4
+    input_string = sample4[:1000]
     
     encoder = Encoder()
     compressed = encoder._arithmetic_encode_str(input_string)
