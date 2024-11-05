@@ -73,11 +73,13 @@ class DynamicCompressor(Encoder):
         with torch.no_grad():
             logits = self.supporter_model(input_tensor).squeeze(0)
         
+        print(input_tensor)
         # Calculate probabilities and compress based on predictions
         probabilities = torch.softmax(logits, dim=1)
         compressed_indices = []
         for i, prob in enumerate(probabilities):
             _, sorted_indices = torch.sort(prob, descending=True)
+      
             index = (sorted_indices == input_indices[i+1]).nonzero(as_tuple=True)[0].item()
             compressed_indices.append(index)
         calculate_frequencies(compressed_indices)
@@ -86,28 +88,29 @@ class DynamicCompressor(Encoder):
         freq = [0] * self.vocab_size
         for index in compressed_indices:
             freq[index] += 1
-            
+        
         #print("compress indices:  ", compressed_indices)
         # Use arithmetic coding to further compress the data
+        first_char_index = input_indices[0]
         encoded_data = self._arithmetic_encode(compressed_indices, freq)
-        return encoded_data, freq
+        return encoded_data, freq, first_char_index
     
-    def decompress(self, compressed_data: bytes, freq: List[float], output_size: int) -> str:
+    def decompress(self, compressed_data: bytes, freq: List[float], output_size: int, first_char_index: int) -> str:
         # Decompress the data using arithmetic decoding and the SupporterModel
         decoded_indices = self._arithmetic_decode(compressed_data, freq, output_size - 1)
 
         max_seq_len = 20  # Define a fixed maximum sequence length
-        decompressed_indices = []  # Initialize the list to hold decompressed indices
-
+        decompressed_indices = [first_char_index]  # Initialize the list to hold decompressed indices
+        input_buffer = [first_char_index]
+        
         # Initialize the input buffer with zeros or a start token
-        input_buffer = [0] * max_seq_len
+        input_buffer = [0] * (max_seq_len - 1) + input_buffer
         input_tensor = torch.tensor([input_buffer], dtype=torch.long)
 
         supporter_model = self.supporter_model
         supporter_model.eval()  # Set the model to evaluation mode
 
         for i in range(output_size - 1):
-            print(f"Decoding character {i+1}/{output_size-1}")
             # Use the SupporterModel to predict the next character
             with torch.no_grad():
                 # Get the model's output for the last position
@@ -116,6 +119,8 @@ class DynamicCompressor(Encoder):
             # Calculate probabilities and select the correct character
             probs = torch.softmax(logits, dim=0)
             _, sorted_indices = torch.sort(probs, descending=True)
+            if i == 0: 
+                print(input_tensor)
             next_index = sorted_indices[decoded_indices[i]].item()
             decompressed_indices.append(next_index)
 
@@ -129,13 +134,14 @@ class DynamicCompressor(Encoder):
         # Convert indices back to a string
         return self._indices_to_string(decompressed_indices)
     
-    def save_compressed_data(self, model_save_path: str, compressed_data: bytes, freq: List[float]):
+    def save_compressed_data(self, model_save_path: str, compressed_data: bytes, freq: List[float], first_char_index: int):
         # Save the model's state dictionary and compressed data into one file
         data = {
             'model_state_dict': self.supporter_model.state_dict(),
             'compressed_data': compressed_data,
             'freq': freq,
-            'char_to_index': self.char_to_index
+            'char_to_index': self.char_to_index,
+            'first_char_index': first_char_index
         }
         with open(model_save_path, 'wb') as f:
             pickle.dump(data, f)
@@ -146,7 +152,7 @@ class DynamicCompressor(Encoder):
         # Load the model's state dictionary and compressed data from one file
         with open(model_save_path, 'rb') as f:
             data = pickle.load(f)
-        
+        first_char_index = data['first_char_index']
         self.char_to_index = data['char_to_index']
         self.index_to_char = {idx: char for char, idx in self.char_to_index.items()}
         self.vocab_size = len(self.char_to_index)
@@ -157,35 +163,38 @@ class DynamicCompressor(Encoder):
         compressed_data = data['compressed_data']
         freq = data['freq']
         
-        return compressed_data, freq
+        return compressed_data, freq,first_char_index
 
-# Example usage
+# TODO:
+# - Optimize stuff
+# - Right now we save unnecessary data in the `save_compressed_data` function, like first_char_index. Find a better way.
 def main():
-    input_string = sample4
+    input_string = sample4[:1000]
     print(f"Original data size: {len(input_string)} bytes")
     calculate_frequencies(input_string)
     
     compressor = DynamicCompressor(hidden_size=64, epochs=20, learning_rate=0.005)
     
-    compressed_data, freq = compressor.compress(input_string)
-    compressor.save_compressed_data("compressed_data.pkl", compressed_data, freq)
+    compressed_data, freq, first_char_index = compressor.compress(input_string)
+    compressor.save_compressed_data("compressed_data.pkl", compressed_data, freq, first_char_index)
     print(f"Compressed data size: {len(compressed_data)} bytes")
     
     
     decompressor = DynamicCompressor(hidden_size=64, epochs=20, learning_rate=0.005)
     
-    compressed_data, freq  = decompressor.load_compressed_data("compressed_data.pkl")
+    compressed_data, freq,first_char_index  = decompressor.load_compressed_data("compressed_data.pkl")
 
     print(f"Compressed data size: {len(compressed_data)} bytes")
     
-    # decompressed_string = decompressor.decompress(compressed_data, freq, len(input_string))
-    # # print(f"Original string: {input_string}")
-    # #print(f"Decompressed string: {decompressed_string}")
-    # if input_string != decompressed_string:
-    #     print("Strings do not match!")
-    #     print(input_string)
-    #     print("-------------------------------------")
-    #     print(decompressed_string)
+    decompressed_string = decompressor.decompress(compressed_data, freq, len(input_string), first_char_index)
+    if input_string != decompressed_string:
+        print("Strings do not match!")
+        print(input_string)
+        print("-------------------------------------")
+        print(decompressed_string)
+    else:
+        print("Decompression successful!")
+    
     
     
 def compress_without_model():
@@ -198,4 +207,4 @@ def compress_without_model():
 
 if __name__ == "__main__":
     main()
-    compress_without_model()
+    #compress_without_model()
