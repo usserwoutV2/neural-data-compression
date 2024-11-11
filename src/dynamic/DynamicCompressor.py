@@ -6,13 +6,17 @@ import sys
 import os
 from  SupporterModel import SupporterModel
 import pickle
-
+import time
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from Encoder import Encoder
 from exampleData import sample2,sample1,sample3,sample4
-from stats import calculate_frequencies
+from stats import show_plot
+from util import set_seed
+import numpy as np
 
+
+    
 class DynamicCompressor(Encoder):
     def __init__(self, hidden_size: int = 64, learning_rate: float = 0.001, epochs: int = 10):
         # Initialize the DynamicCompressor with hyperparameters
@@ -43,7 +47,7 @@ class DynamicCompressor(Encoder):
         # Train the SupporterModel on the input string
         self._create_vocabulary(input_string)
         # Initialize the SupporterModel with the correct vocabulary size
-        self.supporter_model = SupporterModel(self.hidden_size, self.hidden_size, self.vocab_size)
+        self.supporter_model = SupporterModel(self.hidden_size, self.hidden_size, vocab_size=self.vocab_size)
         self.optimizer = optim.Adam(self.supporter_model.parameters(), lr=self.learning_rate)
         self.criterion = nn.CrossEntropyLoss()
         
@@ -73,7 +77,6 @@ class DynamicCompressor(Encoder):
         with torch.no_grad():
             logits = self.supporter_model(input_tensor).squeeze(0)
         
-        print(input_tensor)
         # Calculate probabilities and compress based on predictions
         probabilities = torch.softmax(logits, dim=1)
         compressed_indices = []
@@ -82,7 +85,8 @@ class DynamicCompressor(Encoder):
       
             index = (sorted_indices == input_indices[i+1]).nonzero(as_tuple=True)[0].item()
             compressed_indices.append(index)
-        calculate_frequencies(compressed_indices)
+        show_plot(compressed_indices)
+
 
         # Calculate frequency of each index for arithmetic coding
         freq = [0] * self.vocab_size
@@ -119,8 +123,6 @@ class DynamicCompressor(Encoder):
             # Calculate probabilities and select the correct character
             probs = torch.softmax(logits, dim=0)
             _, sorted_indices = torch.sort(probs, descending=True)
-            if i == 0: 
-                print(input_tensor)
             next_index = sorted_indices[decoded_indices[i]].item()
             decompressed_indices.append(next_index)
 
@@ -141,7 +143,8 @@ class DynamicCompressor(Encoder):
             'compressed_data': compressed_data,
             'freq': freq,
             'char_to_index': self.char_to_index,
-            'first_char_index': first_char_index
+            'first_char_index': first_char_index,
+
         }
         with open(model_save_path, 'wb') as f:
             pickle.dump(data, f)
@@ -169,18 +172,26 @@ class DynamicCompressor(Encoder):
 # - Optimize stuff
 # - Right now we save unnecessary data in the `save_compressed_data` function, like first_char_index. Find a better way.
 def main():
-    input_string = sample4[:1000]
+    input_string = sample4 #[:10_000]
+    set_seed(421)
     print(f"Original data size: {len(input_string)} bytes")
-    calculate_frequencies(input_string)
+    show_plot(input_string)
     
-    compressor = DynamicCompressor(hidden_size=64, epochs=20, learning_rate=0.005)
+    hidden_size = 58
+    learning_rate = 0.0020963743367759346
+    epochs = 20
     
+    compressor = DynamicCompressor(hidden_size=hidden_size, epochs=epochs, learning_rate=learning_rate)
+    
+    start_time = time.time()
     compressed_data, freq, first_char_index = compressor.compress(input_string)
+    print(f"Compression time: {time.time() - start_time:.2f} seconds")
+    
     compressor.save_compressed_data("compressed_data.pkl", compressed_data, freq, first_char_index)
     print(f"Compressed data size: {len(compressed_data)} bytes")
     
     
-    decompressor = DynamicCompressor(hidden_size=64, epochs=20, learning_rate=0.005)
+    decompressor = DynamicCompressor(hidden_size=hidden_size, epochs=epochs, learning_rate=learning_rate)
     
     compressed_data, freq,first_char_index  = decompressor.load_compressed_data("compressed_data.pkl")
 
@@ -203,7 +214,7 @@ def compress_without_model():
     encoder = Encoder()
     compressed = encoder._arithmetic_encode_str(input_string)
     print(f"Compressed data size (no support model): {len(compressed)} bytes")
-    
+
 
 if __name__ == "__main__":
     main()

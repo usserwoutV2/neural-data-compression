@@ -3,7 +3,7 @@ from collections import Counter
 from termcolor import colored
 import itertools
 
-def calculate_frequencies(input_string, plot="print"):
+def show_plot(input_string:list[int], plot="print"):
     # Calculate the frequency of each character in the input string
     freq = Counter(input_string)
     if plot == "plot":

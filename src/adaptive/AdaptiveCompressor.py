@@ -1,3 +1,6 @@
+
+
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -12,7 +15,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from Encoder import Encoder, AdaptiveArithmeticEncoder
 from dynamic.SupporterModel import SupporterModel
 from exampleData import sample4
-from stats import calculate_frequencies
+from stats import show_plot
 
 def set_seed(seed: int):
     # Set the seed for PyTorch
@@ -32,10 +35,13 @@ def set_seed(seed: int):
 
     
 class AdaptiveCompressor(Encoder):
-    def __init__(self, hidden_size: int = 64, learning_rate: float = 0.001):
+    def __init__(self, hidden_size: int = 64, initial_learning_rate: float = 0.1, min_learning_rate: float = 0.001, decay_rate: float = 0.99):
         set_seed(42)
         self.hidden_size = hidden_size
-        self.learning_rate = learning_rate
+        self.initial_learning_rate = initial_learning_rate
+        self.min_learning_rate = min_learning_rate
+        self.decay_rate = decay_rate
+        self.current_step = 0
         self.char_to_index = {}
         self.index_to_char = {}
         self.vocab_size = 0
@@ -48,7 +54,12 @@ class AdaptiveCompressor(Encoder):
         self.alphabet = [chr(i) for i in range(128)]
         self.vocab_size = len(self.alphabet)
         self.supporter_model = SupporterModel(self.hidden_size, self.hidden_size, self.vocab_size)
-        self.optimizer = optim.Adam(self.supporter_model.parameters(), lr=self.learning_rate)
+        self.optimizer = optim.Adam(self.supporter_model.parameters(), lr=self.initial_learning_rate)
+
+    def _update_learning_rate(self):
+        new_lr = max(self.min_learning_rate, self.initial_learning_rate * (self.decay_rate ** self.current_step))
+        for param_group in self.optimizer.param_groups:
+            param_group['lr'] = new_lr
 
     def _string_to_indices(self, input_string: str) -> List[int]:
         return [ord(char) for char in input_string]
@@ -72,6 +83,9 @@ class AdaptiveCompressor(Encoder):
         del_me = []
         
         for i in tqdm(range(self.tensor_size, len(input_indices)), desc="Compressing"):
+            self.current_step = i
+            self._update_learning_rate()
+            
             current_indices = input_buffer[-self.tensor_size:]
             target_index = input_indices[i]
             input_tensor = torch.tensor([current_indices], dtype=torch.long)
@@ -100,7 +114,7 @@ class AdaptiveCompressor(Encoder):
             del_me.append(rank)
             
         
-        calculate_frequencies(del_me)
+        show_plot(del_me)
             
         encoded_data = adaptive_encoder.finish_encoding()
         # Append the size of the input to the output
@@ -117,6 +131,9 @@ class AdaptiveCompressor(Encoder):
         decompressed_indices = list(compressed_data[8:8+self.tensor_size])
         
         for i in tqdm(range(self.tensor_size, len(decoded_indices)+1), desc="Decompressing"):
+            self.current_step = i
+            self._update_learning_rate()
+            
             current_indices = decompressed_indices[-self.tensor_size:]
             input_tensor = torch.tensor([current_indices], dtype=torch.long)
             
@@ -144,33 +161,33 @@ class AdaptiveCompressor(Encoder):
 
 def main():
     
-    input_string = sample4[:1000]
+    input_string = sample4[:20_000]
     print(f"Original data size: {len(input_string)} bytes")
-    calculate_frequencies(input_string)
+    show_plot(input_string)
     
     start_time = time.time()
 
-    compressor = AdaptiveCompressor(hidden_size=64, learning_rate=0.005)
+    compressor = AdaptiveCompressor(hidden_size=64, initial_learning_rate=0.001, min_learning_rate=0.00005, decay_rate=0.9999)
     compressed_data = compressor.compress(input_string)
     print(f"Compression took {time.time() - start_time:.2f} seconds")
     print(f"Compressed data size: {len(compressed_data)} bytes")
 
-    start_time = time.time()
-    decompressor = AdaptiveCompressor(hidden_size=64, learning_rate=0.005)
-    decompressed_string = decompressor.decompress(compressed_data)
-    print(f"Decompression took {time.time() - start_time:.2f} seconds")
+    # start_time = time.time()
+    # decompressor = AdaptiveCompressor(hidden_size=64, learning_rate=0.005)
+    # decompressed_string = decompressor.decompress(compressed_data)
+    # print(f"Decompression took {time.time() - start_time:.2f} seconds")
+
     
-    print(input_string)
-    print("--------------------")
-    print(decompressed_string)
-    
-    if input_string != decompressed_string:
-        print("Strings do not match!")
-    else:
-        print("Decompression successful!")
+    # if input_string != decompressed_string:
+    #     print(input_string)
+    #     print("--------------------")
+    #     print(decompressed_string)
+    #     print("Strings do not match!")
+    # else:
+    #     print("Decompression successful!")
 
 def compress_without_model():
-    input_string = sample4[:1000]
+    input_string = sample4
     
     encoder = Encoder()
     compressed = encoder._arithmetic_encode_str(input_string)
