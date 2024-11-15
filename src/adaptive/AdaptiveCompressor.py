@@ -1,6 +1,3 @@
-
-
-
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -14,7 +11,7 @@ import time
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from Encoder import Encoder, AdaptiveArithmeticEncoder
 from dynamic.SupporterModel import SupporterModel
-from exampleData import sample4
+from exampleData import sample1
 from stats import show_plot
 
 def set_seed(seed: int):
@@ -53,7 +50,9 @@ class AdaptiveCompressor(Encoder):
     def _create_vocabulary(self):
         self.alphabet = [chr(i) for i in range(128)]
         self.vocab_size = len(self.alphabet)
-        self.supporter_model = SupporterModel(self.hidden_size, self.hidden_size, self.vocab_size)
+
+
+        self.supporter_model = SupporterModel(self.hidden_size, self.hidden_size, self.vocab_size, quantize=False)
         self.optimizer = optim.Adam(self.supporter_model.parameters(), lr=self.initial_learning_rate)
 
     def _update_learning_rate(self):
@@ -92,7 +91,8 @@ class AdaptiveCompressor(Encoder):
             
             # Forward pass
             output = self.supporter_model(input_tensor)
-            probabilities = torch.softmax(output.squeeze(0), dim=1)[0]
+            output_squeezed = output.squeeze(0)
+            probabilities = torch.softmax(output_squeezed, dim=1)[0]
             
             target_prob = probabilities[target_index].item()
             
@@ -101,7 +101,7 @@ class AdaptiveCompressor(Encoder):
             compressed_indices.append(rank)
             
             # Train on actual next character
-            loss = self.criterion(output.squeeze(0), torch.tensor([target_index]))
+            loss = self.criterion(output_squeezed, torch.tensor([target_index]))
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
@@ -140,12 +140,11 @@ class AdaptiveCompressor(Encoder):
             # Forward pass
             output = self.supporter_model(input_tensor)
             probabilities = torch.softmax(output.squeeze(0), dim=1)[0]
-            
-            # Get the sorted indices of probabilities in descending order
-            sorted_indices = torch.argsort(probabilities, descending=True)
-            
-            # Get the character at rank decoded_indices[i - self.tensor_size]
-            next_index = sorted_indices[decoded_indices[i - self.tensor_size]].item()
+            target_index = decoded_indices[i - self.tensor_size]
+            # Get the index of the nth largest probability directly
+            next_index = torch.topk(probabilities, target_index + 1).indices[-1].item()
+ 
+
             decompressed_indices.append(next_index)
             
             # Train on predicted character
@@ -156,12 +155,9 @@ class AdaptiveCompressor(Encoder):
         
         return self._indices_to_string(decompressed_indices)
 
-# TODO:
-# - Optimize stuff
-
 def main():
     
-    input_string = sample4[:20_000]
+    input_string = sample1[:5_000]
     print(f"Original data size: {len(input_string)} bytes")
     show_plot(input_string)
     
@@ -172,22 +168,22 @@ def main():
     print(f"Compression took {time.time() - start_time:.2f} seconds")
     print(f"Compressed data size: {len(compressed_data)} bytes")
 
-    # start_time = time.time()
-    # decompressor = AdaptiveCompressor(hidden_size=64, learning_rate=0.005)
-    # decompressed_string = decompressor.decompress(compressed_data)
-    # print(f"Decompression took {time.time() - start_time:.2f} seconds")
+    start_time = time.time()
+    decompressor = AdaptiveCompressor(hidden_size=64, initial_learning_rate=0.001, min_learning_rate=0.00005, decay_rate=0.9999)
+    decompressed_string = decompressor.decompress(compressed_data)
+    print(f"Decompression took {time.time() - start_time:.2f} seconds")
 
     
-    # if input_string != decompressed_string:
-    #     print(input_string)
-    #     print("--------------------")
-    #     print(decompressed_string)
-    #     print("Strings do not match!")
-    # else:
-    #     print("Decompression successful!")
+    if input_string != decompressed_string:
+        print(input_string)
+        print("--------------------")
+        print(decompressed_string)
+        print("Strings do not match!")
+    else:
+        print("Decompression successful!")
 
 def compress_without_model():
-    input_string = sample4
+    input_string = sample1[:20_000]
     
     encoder = Encoder()
     compressed = encoder._arithmetic_encode_str(input_string)

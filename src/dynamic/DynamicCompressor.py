@@ -12,6 +12,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from Encoder import Encoder
 from exampleData import sample2,sample1,sample3,sample4
 from stats import show_plot
+from entropy import calculate_entropy_list,calculate_entropy
 from util import set_seed
 import numpy as np
 
@@ -47,7 +48,7 @@ class DynamicCompressor(Encoder):
         # Train the SupporterModel on the input string
         self._create_vocabulary(input_string)
         # Initialize the SupporterModel with the correct vocabulary size
-        self.supporter_model = SupporterModel(self.hidden_size, self.hidden_size, vocab_size=self.vocab_size)
+        self.supporter_model = SupporterModel(self.hidden_size, self.hidden_size, vocab_size=self.vocab_size, quantize=True)
         self.optimizer = optim.Adam(self.supporter_model.parameters(), lr=self.learning_rate)
         self.criterion = nn.CrossEntropyLoss()
         
@@ -86,7 +87,8 @@ class DynamicCompressor(Encoder):
             index = (sorted_indices == input_indices[i+1]).nonzero(as_tuple=True)[0].item()
             compressed_indices.append(index)
         show_plot(compressed_indices)
-
+        # print("Entropy before transformation",calculate_entropy(input_string))
+        # print("Entropy after transformation",calculate_entropy_list(compressed_indices))
 
         # Calculate frequency of each index for arithmetic coding
         freq = [0] * self.vocab_size
@@ -172,7 +174,7 @@ class DynamicCompressor(Encoder):
 # - Optimize stuff
 # - Right now we save unnecessary data in the `save_compressed_data` function, like first_char_index. Find a better way.
 def main():
-    input_string = sample4 #[:10_000]
+    input_string = sample4[:50_000]
     set_seed(421)
     print(f"Original data size: {len(input_string)} bytes")
     show_plot(input_string)
@@ -209,7 +211,7 @@ def main():
     
     
 def compress_without_model():
-    input_string = sample4
+    input_string = sample4[:50_000]
     
     encoder = Encoder()
     compressed = encoder._arithmetic_encode_str(input_string)
@@ -218,4 +220,4 @@ def compress_without_model():
 
 if __name__ == "__main__":
     main()
-    #compress_without_model()
+    compress_without_model()
