@@ -56,6 +56,7 @@ class DynamicCompressor(Encoder):
         input_indices = self._string_to_indices(input_string)
         input_tensor = torch.tensor(input_indices[:-1], dtype=torch.long).unsqueeze(0)
         target_tensor = torch.tensor(input_indices[1:], dtype=torch.long)
+        
 
         # Training loop: update model parameters to minimize loss
         for epoch in range(self.epochs):
@@ -174,7 +175,7 @@ class DynamicCompressor(Encoder):
 # - Optimize stuff
 # - Right now we save unnecessary data in the `save_compressed_data` function, like first_char_index. Find a better way.
 def main():
-    input_string = sample4[:50_000]
+    input_string = sample4[:20_000]
     set_seed(421)
     print(f"Original data size: {len(input_string)} bytes")
     show_plot(input_string)
@@ -211,7 +212,7 @@ def main():
     
     
 def compress_without_model():
-    input_string = sample4[:50_000]
+    input_string = sample4[:20_000]
     
     encoder = Encoder()
     compressed = encoder._arithmetic_encode_str(input_string)
