@@ -4,52 +4,60 @@ import torch.optim as optim
 from typing import List, Tuple
 import sys
 import os
-from  SupporterModel import SupporterModel
+from SupporterModel import SupporterModel
 import pickle
 import time
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from Encoder import Encoder
-from exampleData import sample2,sample1,sample3,sample4
+from exampleData import sample2, sample1, sample3, sample4
 from stats import show_plot
-from entropy import calculate_entropy_list,calculate_entropy
+from entropy import calculate_entropy_list, calculate_entropy
 from util import set_seed, load_dataset
 import numpy as np
 
-
-
+import lzma
+from tokenizers import Tokenizer
+from tokenizers.models import BPE
+from tokenizers.trainers import BpeTrainer
+from tokenizers.pre_tokenizers import ByteLevel
+from tokenizers.decoders import ByteLevel as ByteLevelDecoder
+from tokenizers.processors import BertProcessing
+# 274165) 172248 -> 145974 -> 128625
 class DynamicCompressor(Encoder):
-    def __init__(self, hidden_size: int = 64, learning_rate: float = 0.001, epochs: int = 10, encode_method="lzma"):
+    def __init__(self, hidden_size: int = 64, learning_rate: float = 0.001, epochs: int = 10, encode_method="arithmetic"):
         super().__init__(method=encode_method)
         
         # Initialize the DynamicCompressor with hyperparameters
         self.hidden_size = hidden_size
         self.learning_rate = learning_rate
         self.epochs = epochs
-        self.char_to_index = {}
-        self.index_to_char = {}
-        self.vocab_size = 0
-
-    def _create_vocabulary(self, input_string: str):
-        # Create a vocabulary from the input string
-        # This is used to convert between characters and indices
-        unique_chars = sorted(set(input_string))
-        self.vocab_size = len(unique_chars)
-        self.char_to_index = {char: idx for idx, char in enumerate(unique_chars)}
-        self.index_to_char = {idx: char for idx, char in enumerate(unique_chars)}
+        self.tokenizer = Tokenizer(BPE())
+        self.tokenizer.pre_tokenizer = ByteLevel()
+        self.tokenizer.decoder = ByteLevelDecoder()
+        self.tokenizer.post_processor = BertProcessing(("[CLS]", 1), ("[SEP]", 2))
+        self.vocab_size = 150 
+        
+    def train_tokenizer(self, texts: List[str]):
+        self.vocab_size = max(150, min(1000, round(len(texts[0]) / 333)  ))
+        self.trainer = BpeTrainer(vocab_size=self.vocab_size, special_tokens=["[CLS]", "[SEP]"])
+        
+        self.tokenizer.train_from_iterator(texts, self.trainer)
 
     def _string_to_indices(self, input_string: str) -> List[int]:
-        # Convert a string to a list of indices based on the vocabulary
-        return [self.char_to_index[char] for char in input_string]
+        # Convert a string to a list of indices using the tokenizer
+        return self.tokenizer.encode(input_string).ids
 
     def _indices_to_string(self, indices: List[int]) -> str:
-        # Convert a list of indices back to a string based on the vocabulary
-        return ''.join(self.index_to_char[idx] for idx in indices)
+        # Convert a list of indices back to a string using the tokenizer
+        return self.tokenizer.decode(indices)
 
     def train(self, input_string: str):
         # Train the SupporterModel on the input string
-        self._create_vocabulary(input_string)
+        self.train_tokenizer([input_string])
         # Initialize the SupporterModel with the correct vocabulary size
+        self.vocab_size = self.tokenizer.get_vocab_size()
         self.supporter_model = SupporterModel(self.hidden_size, self.hidden_size, vocab_size=self.vocab_size, quantize=True)
         self.optimizer = optim.Adam(self.supporter_model.parameters(), lr=self.learning_rate)
         self.criterion = nn.CrossEntropyLoss()
@@ -91,13 +99,14 @@ class DynamicCompressor(Encoder):
             # Count how many probabilities are higher than the target_prob
             rank = (prob > target_prob).sum().item()
             compressed_indices.append(rank)
+
             
         show_plot(compressed_indices)
         # print("Entropy before transformation",calculate_entropy(input_string))
         # print("Entropy after transformation",calculate_entropy_list(compressed_indices))
 
         # Calculate frequency of each index for arithmetic coding
-        freq = [0] * 256#self.vocab_size
+        freq = [0] * self.vocab_size
         for index in compressed_indices:
             
             freq[index] += 1
@@ -105,14 +114,14 @@ class DynamicCompressor(Encoder):
         #print("compress indices:  ", compressed_indices)
         # Use arithmetic coding to further compress the data
         first_char_index = input_indices[0]      
-       
         encoded_data = self._encode(compressed_indices, freq)
-        return encoded_data, freq, first_char_index
+        
+        return encoded_data, freq, first_char_index, len(compressed_indices)
     
     def decompress(self, compressed_data: bytes, freq: List[float], output_size: int, first_char_index: int) -> str:
         # Decompress the data using arithmetic decoding and the SupporterModel
-        decoded_indices = self._decode(compressed_data, freq, output_size - 1)
 
+        decoded_indices = self._decode(compressed_data, freq, output_size )
         max_seq_len = 20  # Define a fixed maximum sequence length
         decompressed_indices = [first_char_index]  # Initialize the list to hold decompressed indices
         input_buffer = [first_char_index]
@@ -124,12 +133,14 @@ class DynamicCompressor(Encoder):
         supporter_model = self.supporter_model
         supporter_model.eval()  # Set the model to evaluation mode
 
-        for i in range(output_size - 1):
+        for i in range(output_size ):
             with torch.no_grad():
                 # Get the model's output for the last position
                 logits = supporter_model(input_tensor)[0, -1]
 
             probs = torch.softmax(logits, dim=0)
+            if i >= len(decoded_indices):
+                break
             target_index = decoded_indices[i]
             next_index = torch.topk(probs, target_index + 1).indices[-1].item()
 
@@ -138,20 +149,23 @@ class DynamicCompressor(Encoder):
             input_buffer.append(next_index)
             input_buffer = input_buffer[-max_seq_len:]
             input_tensor = torch.tensor([input_buffer], dtype=torch.long)
-
+            
         # Convert indices back to a string
-        return self._indices_to_string(decompressed_indices)
+        return self._indices_to_string(decompressed_indices)[2:]
     
-    def save_compressed_data(self, model_save_path: str, compressed_data: bytes, freq: List[float], first_char_index: int):
+    def save_compressed_data(self, model_save_path: str, compressed_data: bytes, freq: List[float], first_char_index: int,indices_length:int):
         # Save the model's state dictionary and compressed data into one file
         data = {
             'model_state_dict': self.supporter_model.state_dict(),
             'compressed_data': compressed_data,
             'freq': freq,
-            'char_to_index': self.char_to_index,
+            'tokenizer': lzma.compress(self.tokenizer.to_str().encode('utf-8')),
             'first_char_index': first_char_index,
-
+            'indices_length':indices_length
         }
+        
+        print("Tokenized size", len(data['tokenizer']))
+        print("Total size:", len(compressed_data) + len(data['tokenizer']))
         with open(model_save_path, 'wb') as f:
             pickle.dump(data, f)
             
@@ -162,29 +176,24 @@ class DynamicCompressor(Encoder):
         with open(model_save_path, 'rb') as f:
             data = pickle.load(f)
         first_char_index = data['first_char_index']
-        self.char_to_index = data['char_to_index']
-        self.index_to_char = {idx: char for char, idx in self.char_to_index.items()}
-        self.vocab_size = len(self.char_to_index)
+        self.tokenizer = Tokenizer.from_str(lzma.decompress(data['tokenizer']).decode('utf-8')) 
+        self.vocab_size = self.tokenizer.get_vocab_size()
         self.supporter_model = SupporterModel(self.hidden_size, self.hidden_size, self.vocab_size)
         self.supporter_model.load_state_dict(data['model_state_dict'])
         self.supporter_model.eval()
-        
+
         compressed_data = data['compressed_data']
         freq = data['freq']
         
-        return compressed_data, freq,first_char_index
+        return compressed_data, freq, first_char_index, data['indices_length']
 
 encode_method = "arithmetic"
-input_size = 500_000
-
-# 50_000: (20240) 21828  | 27452 -> improvement rate: 0,2048666764
-# 100_000  44175 | 55014 -> improvement rate: 0,1970225761
-# 200_000  88859 | 110178 -> improvement rate: 0,1934959792 
-# 500_000  219724 | 274165 -> improvement rate: 0,1985702041
-
-
+input_size = 50_000
+input_string = load_dataset("bible", input_size)
+# TODO:
+# - Optimize stuff
+# - Right now we save unnecessary data in the `save_compressed_data` function, like first_char_index. Find a better way.
 def main():
-    input_string = load_dataset("bible", input_size)#sample1[:input_size]
     set_seed(421)
     print(f"Original data size: {len(input_string)} bytes")
     #show_plot(input_string)
@@ -196,31 +205,30 @@ def main():
     compressor = DynamicCompressor(hidden_size=hidden_size, epochs=epochs, learning_rate=learning_rate, encode_method=encode_method)
     
     start_time = time.time()
-    compressed_data, freq, first_char_index = compressor.compress(input_string)
+    compressed_data, freq, first_char_index, indices_length = compressor.compress(input_string)
     print(f"Compression time: {time.time() - start_time:.2f} seconds")
     
-    compressor.save_compressed_data("compressed_data.pkl", compressed_data, freq, first_char_index)
+    compressor.save_compressed_data("compressed_data.pkl", compressed_data, freq, first_char_index,indices_length)
     print(f"Compressed data size: {len(compressed_data)} bytes")
     
     
-    # decompressor = DynamicCompressor(hidden_size=hidden_size, epochs=epochs, learning_rate=learning_rate, encode_method=encode_method)
+    decompressor = DynamicCompressor(hidden_size=hidden_size, epochs=epochs, learning_rate=learning_rate, encode_method=encode_method)
     
-    # compressed_data, freq,first_char_index  = decompressor.load_compressed_data("compressed_data.pkl")
+    compressed_data, freq, first_char_index,indices_length  = decompressor.load_compressed_data("compressed_data.pkl")
 
     
-    # decompressed_string = decompressor.decompress(compressed_data, freq, len(input_string), first_char_index)
-    # if input_string != decompressed_string:
-    #     print("Strings do not match!")
-    #     print(input_string[:100])
-    #     print("-------------------------------------")
-    #     print(decompressed_string[:100])
-    # else:
-    #     print("Decompression successful!")
+    decompressed_string = decompressor.decompress(compressed_data, freq, indices_length, first_char_index)
+    if input_string != decompressed_string:
+        print("Strings do not match!")
+        print(input_string[:180])
+        print("-------------------------------------")
+        print(decompressed_string[:180])
+    else:
+        print("Decompression successful!")
     
     
     
 def compress_without_model():
-    input_string = load_dataset("bible", input_size)
     
     encoder = Encoder(method=encode_method)
     compressed = encoder._encode_str(input_string)

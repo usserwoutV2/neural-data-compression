@@ -1,8 +1,11 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+import io
 
 # IDEA: https://arxiv.org/pdf/1911.03572 (see Supporter model section)
 class SupporterModel(nn.Module):
+
     def __init__(self, input_size: int, hidden_size: int, vocab_size: int, quantize: bool = False):
         super(SupporterModel, self).__init__()
         
@@ -20,13 +23,22 @@ class SupporterModel(nn.Module):
             nn.Linear(hidden_size, hidden_size),
         )
         
+        
         self.final_linear = nn.Linear(hidden_size * 3, vocab_size)
         
+        #self.lstm_block = LSTMBlock(hidden_size, hidden_size, num_layers=2)
+
+        #self.rnn_nn = nn.RNN(hidden_size, hidden_size, num_layers=2, batch_first=True)
+        self.rnn_nn = nn.Sequential(
+            RNNBlock(hidden_size, hidden_size, num_layers=1),
+        )
         
                 
         # self.gru_nn = nn.GRU(hidden_size, hidden_size, 2, batch_first=False)
         # self.gru_linear = nn.Linear(hidden_size, vocab_size)
         # Around 50 % slower, but only 0.8% better
+        
+        # RNN -> very slow ( 53 times slower) and with very small (< 0.1%) improvement
         
         # Dropouts makes it slightly worse
         
@@ -37,11 +49,9 @@ class SupporterModel(nn.Module):
         
         # self.transformer_nn = nn.Sequential(
         #     TransformerBlock(hidden_size, num_heads=2, num_layers=2),  # Ensure num_heads is a factor of hidden_size
-        #     nn.Linear(hidden_size, vocab_size),
-        # ) SLOW
+        #     nn.Linear(hidden_size, hidden_size),
+        # ) # SLOW
         
-        # Ensemble -> little bit better but slower
-
         
         # We use this to reduce the precision of the input tensor for smaller model size
         self.quant = torch.quantization.QuantStub() if quantize else None 
@@ -55,17 +65,30 @@ class SupporterModel(nn.Module):
         linear_out = self.linear_nn(embedded)
         dense_out = self.dense_nn(embedded)
         residual_out = self.residual_nn(embedded)
-        
+
+        #rnn_out = self.rnn_nn(embedded)
         combined_out = torch.cat((linear_out, dense_out, residual_out), dim=-1)
         
         final_out = self.final_linear(combined_out)
         
+        
         if self.quant is not None:
             final_out = self.dequant(final_out)
         return final_out
+    
+    
 
+# 4335
+class RNNBlock(nn.Module):
+    def __init__(self, input_size, hidden_size, num_layers):
+        super(RNNBlock, self).__init__()
+        self.rnn = nn.RNN(input_size, hidden_size, num_layers, batch_first=True, bias=False)
 
+    def forward(self, x):
+        out, _ = self.rnn(x)
+        return out
 
+    
 class ResidualBlock(nn.Module):
     def __init__(self, in_features: int, out_features: int):
         super(ResidualBlock, self).__init__()
@@ -86,6 +109,21 @@ class ResidualBlock(nn.Module):
 
  # -------------  ---------------- #   
  
+class ConvBlock2(nn.Module):
+    def __init__(self, ni):
+        super(ConvBlock2, self).__init__()
+        self.conv1 = nn.Conv2d(ni, ni, 1)
+
+    def forward(self, x):
+        # Assuming x has shape (batch_size, seq_length, hidden_size)
+        # Reshape x to (batch_size, hidden_size, seq_length, 1) to match Conv2d input requirements
+        x = x.permute(0, 2, 1).unsqueeze(-1)
+        out = F.relu(self.conv1(x))
+        # Reshape back to (batch_size, seq_length, hidden_size)
+        out = out.squeeze(-1).permute(0, 2, 1)
+        return out
+
+        
 class ConvBlock(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, activation_fn):
         super(ConvBlock, self).__init__()
@@ -96,17 +134,12 @@ class ConvBlock(nn.Module):
         x = self.conv(x)
         return self.activation(x)
 
-class LSTMBlock(nn.Module):
-    def __init__(self, input_size, hidden_size, num_layers):
-        super(LSTMBlock, self).__init__()
-        self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True)
 
-    def forward(self, x):
-        x, _ = self.lstm(x)
-        return x
 
+    
+    
 class TransformerBlock(nn.Module):
-    def __init__(self, input_size, num_heads, num_layers):
+    def __init__(self, input_size, num_heads=2, num_layers=2):
         super(TransformerBlock, self).__init__()
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=input_size,
@@ -119,7 +152,8 @@ class TransformerBlock(nn.Module):
         )
 
     def forward(self, x):
-        x = self.transformer_encoder(x)
+        with torch.no_grad():
+            x = self.transformer_encoder(x)
         return x
 
 

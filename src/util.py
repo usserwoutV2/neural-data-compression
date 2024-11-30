@@ -17,3 +17,11 @@ def set_seed(seed: int):
     # Ensure deterministic behavior in PyTorch
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
+    
+    
+def load_dataset(name:str, char_count:int = None):
+    with open(f"datasets/files_to_be_compressed/{name}.txt", "r") as f:
+        data = f.read()
+    if char_count is not None:
+        data = data[:char_count]
+    return data
