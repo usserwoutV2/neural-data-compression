@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import io
+
 
 # IDEA: https://arxiv.org/pdf/1911.03572 (see Supporter model section)
 class SupporterModel(nn.Module):
@@ -52,7 +52,6 @@ class SupporterModel(nn.Module):
         #     nn.Linear(hidden_size, hidden_size),
         # ) # SLOW
         
-        
         # We use this to reduce the precision of the input tensor for smaller model size
         self.quant = torch.quantization.QuantStub() if quantize else None 
         self.dequant = torch.quantization.DeQuantStub() if quantize else None
@@ -64,10 +63,11 @@ class SupporterModel(nn.Module):
         
         linear_out = self.linear_nn(embedded)
         dense_out = self.dense_nn(embedded)
-        residual_out = self.residual_nn(embedded)
+        #residual_out = self.residual_nn(embedded)
 
-        #rnn_out = self.rnn_nn(embedded)
-        combined_out = torch.cat((linear_out, dense_out, residual_out), dim=-1)
+        rnn_out = self.rnn_nn(embedded)
+        
+        combined_out = torch.cat((linear_out, dense_out, rnn_out), dim=-1)
         
         final_out = self.final_linear(combined_out)
         

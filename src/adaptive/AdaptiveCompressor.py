@@ -88,31 +88,27 @@ class AdaptiveCompressor(Encoder):
         for batch_start in tqdm(range(self.sequence_length, num_samples, self.batch_size), desc="Compressing"):
             batch_end = min(batch_start + self.batch_size, num_samples)
             batch_inputs = input_indices[batch_start:batch_end]
-
-            # Prepare input sequences from previous characters
-            input_sequences = []
-            for i in range(batch_start - self.sequence_length, batch_end - self.sequence_length):
-                input_sequence = input_indices[i:i + self.sequence_length]
-                input_sequences.append(input_sequence)
-
-            # Convert to tensor
-            input_tensor = torch.tensor(input_sequences, dtype=torch.long)
-            # Forward pass without updating the model
-            output = self.supporter_model(input_tensor)
-            output = output[:, -1, :]  # Get output for the last time step
-            #probabilities = torch.softmax(output, dim=1)
             
+            input_sequences = [input_indices[i:i + self.sequence_length] for i in range(batch_start - self.sequence_length, batch_end - self.sequence_length)]
+            input_tensor = torch.tensor(input_sequences, dtype=torch.long)
+            output = self.supporter_model(input_tensor)
+            
+            output = output[:, -1, :]  # Shape: [batch_size, vocab_size]
 
-            # Process each sample in the batch
-            for j in range(batch_end - batch_start):
-                target_index = batch_inputs[j]
-                probs = output[j]
-                target_prob = probs[target_index].item()
+            # Sort probabilities and get sorted indices for the batch
+            sorted_probs, sorted_indices = torch.sort(output, dim=1, descending=True)
+            
+            # Convert batch_inputs to tensor and create a mask where sorted_indices match batch_inputs
+            batch_inputs_tensor = torch.tensor(batch_inputs, dtype=torch.long)
+            mask = sorted_indices == batch_inputs_tensor.unsqueeze(1)
+            
+            # Find the rank positions
+            ranks = torch.argmax(mask.int(), dim=1).tolist()
+            
+            compressed_indices.extend(ranks)
 
-                # Count how many probabilities are higher than the target_prob
-                rank = (probs > target_prob).sum().item()
-                compressed_indices.append(rank)
-
+            # Encode each rank
+            for rank in ranks:
                 adaptive_encoder.encode_symbol(rank)
 
             # Now update the model with the current batch
@@ -151,17 +147,14 @@ class AdaptiveCompressor(Encoder):
             input_sequence = decompressed_indices[-self.sequence_length:]
             input_tensor = torch.tensor([input_sequence], dtype=torch.long)
 
-            #with torch.no_grad():
-            output = self.supporter_model(input_tensor)
-            
-            probabilities = torch.softmax(output[:, -1, :], dim=1).squeeze(0)
-
-            target_index = torch.topk(probabilities, decoded_ranks[i] + 1, dim=0).indices[-1].item()
-            
-            
-            decompressed_indices.append(target_index)
-            batch_input_sequences.append(input_sequence)
-            batch_targets.append(target_index)
+            with torch.no_grad():
+                output = self.supporter_model(input_tensor)
+                
+                target_index = torch.topk(output[:, -1, :], decoded_ranks[i] + 1, dim=1).indices[0, -1].item()
+                
+                decompressed_indices.append(target_index)
+                batch_input_sequences.append(input_sequence)
+                batch_targets.append(target_index)
 
             if len(batch_input_sequences) == self.batch_size or i == num_symbols - 1:
                 batch_input_tensor = torch.tensor(batch_input_sequences, dtype=torch.long)

@@ -7,15 +7,30 @@ import zlib
 import bz2
 import gzip
 from LZ78Encoder import LZ78Encoder
+import numpy as np
+import brotli
+
+def to_bytes(data: List[int], bytes_per_element) -> bytes:
+    if bytes_per_element == 1:
+        return bytes(data)
+    return np.array(data, dtype=np.uint16).tobytes()
+    
+
+def to_arr(data: bytes, bytes_per_element:int) -> List[int]:
+    if bytes_per_element == 1:
+        data = list(data)
+    elif bytes_per_element == 2:
+        data = np.frombuffer(data, dtype=np.uint16)
+    return data
 
 class Encoder:
     
     def __init__(self, method:str = "lzma"):
-        assert method in ["arithmetic", "huffman", "lzma", "zlib", "bz2", "gzip", "lz78"], "method must be 'arithmetic', 'huffman', 'lzma', 'zlib', 'bz2', 'lz78' or 'gzip'"        
+        assert method in ["arithmetic", "huffman", "lzma", "zlib", "bz2", "gzip", "lz78", "brotli"], "method must be 'arithmetic', 'huffman', 'lzma', 'zlib', 'bz2', 'lz78', 'gzip' or 'brotli'"        
         self.method = method   
-            
+    
 
-    def _encode(self, input_indices: List[int], freq: List[float]) -> bytes:
+    def _encode(self, input_indices: List[int], freq: List[float], bytes_per_element=1) -> bytes:
         
         if self.method == "arithmetic":
             freqs = SimpleFrequencyTable(freq)
@@ -32,16 +47,16 @@ class Encoder:
             huffman = HuffmanCoding()
             return huffman.compress(input_indices, freq)
         elif self.method == "lzma":
-            data = bytes(input_indices)
+            data = to_bytes(input_indices, bytes_per_element)
             return lzma.compress(data)
         elif self.method == "zlib":
-            data = bytes(input_indices)
+            data = to_bytes(input_indices, bytes_per_element)
             return zlib.compress(data)
         elif self.method == "bz2":
-            data = bytes(input_indices)
+            data = to_bytes(input_indices, bytes_per_element)
             return bz2.compress(data)
         elif self.method == "gzip":
-            data = bytes(input_indices)
+            data = to_bytes(input_indices,bytes_per_element)
             with io.BytesIO() as byte_stream:
                 with gzip.GzipFile(fileobj=byte_stream, mode='wb') as gzip_file:
                     gzip_file.write(data)
@@ -50,8 +65,11 @@ class Encoder:
             compressor = LZ78Encoder()
             compressed_data = compressor.compress(input_indices)
             return compressed_data
+        elif self.method == "brotli":
+            data = to_bytes(input_indices, bytes_per_element)
+            return brotli.compress(data)
 
-    def _decode(self, encoded_data: bytes, freq: List[float], output_size: int) -> List[int]:
+    def _decode(self, encoded_data: bytes, freq: List[float], output_size: int, bytes_per_element=1) -> List[int]:
         if self.method == "arithmetic":
             freqs = SimpleFrequencyTable(freq)
             input_stream = io.BytesIO(encoded_data)
@@ -69,18 +87,22 @@ class Encoder:
             return huffman.decompress(encoded_data, freq)
         elif self.method == "lzma":
             data = lzma.decompress(encoded_data)
-            return list(data)
+            return to_arr(data, bytes_per_element)
         elif self.method == "zlib":
             data = zlib.decompress(encoded_data)
-            return list(data)
+            return to_arr(data, bytes_per_element)
         elif self.method == "bz2":
             data = bz2.decompress(encoded_data)
-            return list(data)
+            return to_arr(data, bytes_per_element)
         elif self.method == "gzip":
             with io.BytesIO(encoded_data) as byte_stream:
                 with gzip.GzipFile(fileobj=byte_stream, mode='rb') as gzip_file:
                     data = gzip_file.read()
-            return list(data)
+            return to_arr(data, bytes_per_element)
+        
+        elif self.method == "brotli":
+            data = brotli.decompress(encoded_data)
+            return to_arr(data, bytes_per_element)
         elif self.method == "lz78":
             compressor = LZ78Encoder()
             return compressor.decompress(encoded_data)
