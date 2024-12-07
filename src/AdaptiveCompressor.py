@@ -1,19 +1,16 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from typing import List, Tuple
-import sys
-import os
+from typing import List
 from tqdm import tqdm  
 import random
 import numpy as np
 import time
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from Encoder import Encoder, AdaptiveEncoder
-from dynamic.SupporterModel import SupporterModel
-from exampleData import sample1, sample4
-from stats import show_plot
-from util import  load_dataset
+
+from encoders.Encoder import Encoder, AdaptiveEncoder
+from SupporterModel import SupporterModel
+from util.stats import show_plot
+from util.util import  load_dataset
 
 def set_seed(seed: int):
     # Set the seed for PyTorch
@@ -33,7 +30,7 @@ def set_seed(seed: int):
 
     
 class AdaptiveCompressor(Encoder):
-    def __init__(self, hidden_size: int = 64, initial_learning_rate: float = 0.1, min_learning_rate: float = 0.001, decay_rate: float = 0.99, batch_size=8, encode_method="arithmetic"):
+    def __init__(self, hidden_size: int = 64, initial_learning_rate: float = 0.1, min_learning_rate: float = 0.001, decay_rate: float = 0.99, batch_size=128, encode_method="arithmetic", input_type="utf8"):
         set_seed(42)
         self.hidden_size = hidden_size
         self.initial_learning_rate = initial_learning_rate
@@ -49,13 +46,13 @@ class AdaptiveCompressor(Encoder):
         self.batch_size = batch_size
         self.sequence_length = 32 
         self.encode_method = encode_method
+        self.vocab_size = 128 if input_type == "utf8" else 256
+        self.input_type = input_type
+        self.use_rnn = True
 
-    def _create_vocabulary(self):
-        self.alphabet = [chr(i) for i in range(128)]
-        self.vocab_size = len(self.alphabet)
 
-
-        self.supporter_model = SupporterModel(self.hidden_size, self.hidden_size, self.vocab_size, quantize=False)
+    def start_encoding(self):
+        self.supporter_model = SupporterModel(self.hidden_size, self.hidden_size, self.vocab_size, quantize=False , use_rnn=self.use_rnn)
         self.optimizer = optim.Adam(self.supporter_model.parameters(), lr=self.initial_learning_rate)
 
     def _update_learning_rate(self):
@@ -69,15 +66,16 @@ class AdaptiveCompressor(Encoder):
     def _indices_to_string(self, indices: List[int]) -> str:
         return ''.join(chr(idx) for idx in indices)
 
-    
-
     def compress(self, input_string: str) -> bytes:
-        self._create_vocabulary()
+        if isinstance(input_string, bytes):
+            input_string = input_string.decode('latin1')
+        #self._create_vocabulary(input_string)
+        self.start_encoding()
         input_indices = self._string_to_indices(input_string)
         num_samples = len(input_indices)
         compressed_indices = []
 
-        adaptive_encoder = AdaptiveEncoder(128, method=self.encode_method)
+        adaptive_encoder = AdaptiveEncoder(self.vocab_size, method=self.encode_method)
         adaptive_encoder.start_encoding()
 
         # Include the initial sequence in the compressed data
@@ -95,10 +93,7 @@ class AdaptiveCompressor(Encoder):
             
             output = output[:, -1, :]  # Shape: [batch_size, vocab_size]
 
-            # Sort probabilities and get sorted indices for the batch
             sorted_probs, sorted_indices = torch.sort(output, dim=1, descending=True)
-            
-            # Convert batch_inputs to tensor and create a mask where sorted_indices match batch_inputs
             batch_inputs_tensor = torch.tensor(batch_inputs, dtype=torch.long)
             mask = sorted_indices == batch_inputs_tensor.unsqueeze(1)
             
@@ -111,7 +106,6 @@ class AdaptiveCompressor(Encoder):
             for rank in ranks:
                 adaptive_encoder.encode_symbol(rank)
 
-            # Now update the model with the current batch
             self.optimizer.zero_grad()
             # output = self.supporter_model(input_tensor)
             # output = output[:, -1, :]
@@ -125,23 +119,26 @@ class AdaptiveCompressor(Encoder):
 
         encoded_data = adaptive_encoder.finish_encoding()
         input_size_bytes = len(input_string).to_bytes(8, byteorder='big')
-
+        
+        
         # Return the size, prefix, and encoded data
-        return input_size_bytes + prefix + encoded_data
+        return self.vocab_size.to_bytes(2, byteorder='big') + input_size_bytes + prefix + encoded_data
 
 
     def decompress(self, compressed_data: bytes) -> str:
-        self._create_vocabulary()
-        input_size = int.from_bytes(compressed_data[:8], byteorder='big')
-        prefix_indices = list(compressed_data[8:8 + self.sequence_length])
+        self.vocab_size = int.from_bytes(compressed_data[:2], byteorder='big')
+        self.start_encoding()
+        input_size = int.from_bytes(compressed_data[2:10], byteorder='big')
+        prefix_indices = list(compressed_data[10:10 + self.sequence_length])
         decompressed_indices = prefix_indices.copy()
-        adaptive_decoder = AdaptiveEncoder(128, method=self.encode_method)
-        encoded_data = compressed_data[8 + self.sequence_length:]
+        adaptive_decoder = AdaptiveEncoder(self.vocab_size, method=self.encode_method)
+        encoded_data = compressed_data[10 + self.sequence_length:]
         num_symbols = input_size - self.sequence_length
         decoded_ranks = adaptive_decoder.decode(encoded_data, num_symbols)
 
         batch_input_sequences = []
         batch_targets = []
+        
 
         for i in tqdm(range(num_symbols), desc="Decompressing"):
             input_sequence = decompressed_indices[-self.sequence_length:]
@@ -149,10 +146,10 @@ class AdaptiveCompressor(Encoder):
 
             with torch.no_grad():
                 output = self.supporter_model(input_tensor)
-                
-                target_index = torch.topk(output[:, -1, :], decoded_ranks[i] + 1, dim=1).indices[0, -1].item()
-                
+                probs = torch.softmax(output[:, -1, :], dim=1)
+                target_index = torch.topk(probs, decoded_ranks[i] + 1, dim=1).indices[0, -1].item()
                 decompressed_indices.append(target_index)
+        
                 batch_input_sequences.append(input_sequence)
                 batch_targets.append(target_index)
 
@@ -173,13 +170,18 @@ class AdaptiveCompressor(Encoder):
                 self.current_step += 1
                 self._update_learning_rate()
 
+
         decompressed_string = self._indices_to_string(decompressed_indices)
+        
+        if self.input_type == "bytes":
+            return decompressed_string[:input_size].encode('latin1')
         return decompressed_string[:input_size]
+        
 
 
 compression_method = "arithmetic"
-
-input_string = load_dataset("bible", 20_000)
+input_type = "utf8"
+input_string = load_dataset("bible", 1_000_000)
 
 
 def main():
@@ -189,24 +191,24 @@ def main():
     
     start_time = time.time()
 
-    compressor = AdaptiveCompressor(hidden_size=64, initial_learning_rate=0.001, min_learning_rate=0.00005, decay_rate=0.9999, encode_method=compression_method)
+    compressor = AdaptiveCompressor(hidden_size=64, initial_learning_rate=0.001, min_learning_rate=0.00005, decay_rate=0.9999, encode_method=compression_method, input_type=input_type, batch_size=128)
     compressed_data = compressor.compress(input_string)
     print(f"Compression took {time.time() - start_time:.2f} seconds")
     print(f"Compressed data size: {len(compressed_data)} bytes")
 
-    start_time = time.time()
-    decompressor = AdaptiveCompressor(hidden_size=64, initial_learning_rate=0.001, min_learning_rate=0.00005, decay_rate=0.9999, encode_method=compression_method)
-    decompressed_string = decompressor.decompress(compressed_data)
-    print(f"Decompression took {time.time() - start_time:.2f} seconds")
+    # start_time = time.time()
+    # decompressor = AdaptiveCompressor(hidden_size=64, initial_learning_rate=0.001, min_learning_rate=0.00005, decay_rate=0.9999, encode_method=compression_method, input_type=input_type, batch_size=128)
+    # decompressed_string = decompressor.decompress(compressed_data)
+    # print(f"Decompression took {time.time() - start_time:.2f} seconds")
 
     
-    if input_string != decompressed_string:
-        print(input_string[:100])   
-        print("--------------------")
-        print(decompressed_string[:100])
-        print("Strings do not match!")
-    else:
-        print("Decompression successful!")
+    # if input_string != decompressed_string:
+    #     print(input_string[:100])   
+    #     print("--------------------")
+    #     print(decompressed_string[:100])
+    #     print("Strings do not match!")
+    # else:
+    #     print("Decompression successful!")
 
 def compress_without_model():
     

@@ -1,12 +1,11 @@
 
-from DynamicCompressor import DynamicCompressor
 import optuna
 
 import sys
 import os
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from exampleData import sample2,sample1,sample3,sample4
+from DynamicCompressor import DynamicCompressor
 
 from util import set_seed
 
@@ -23,7 +22,7 @@ def objective(trial):
     compressor = DynamicCompressor(hidden_size=hidden_size, learning_rate=learning_rate, epochs=epochs)
     
     # Sample input data
-    input_string = sample4[:10_000]
+    input_string = "..."
     
     # Compress and decompress the input string
     compressed_data, freq, first_char_index = compressor.compress(input_string)

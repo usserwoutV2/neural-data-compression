@@ -1,12 +1,12 @@
-from typing import List
+from typing import List,Union
 import io
-from arithmeticEncoder import SimpleFrequencyTable, ArithmeticEncoder, ArithmeticDecoder, BitOutputStream, BitInputStream
-from huffman import HuffmanCoding
+from encoders.arithmeticEncoder import SimpleFrequencyTable, ArithmeticEncoder, ArithmeticDecoder, BitOutputStream, BitInputStream
+from encoders.huffman import HuffmanCoding
 import lzma
 import zlib
 import bz2
 import gzip
-from LZ78Encoder import LZ78Encoder
+from encoders.LZ78Encoder import LZ78Encoder
 import numpy as np
 import brotli
 
@@ -25,9 +25,12 @@ def to_arr(data: bytes, bytes_per_element:int) -> List[int]:
 
 class Encoder:
     
-    def __init__(self, method:str = "lzma"):
+    def __init__(self, method:str = "arithmetic"):
         assert method in ["arithmetic", "huffman", "lzma", "zlib", "bz2", "gzip", "lz78", "brotli"], "method must be 'arithmetic', 'huffman', 'lzma', 'zlib', 'bz2', 'lz78', 'gzip' or 'brotli'"        
         self.method = method   
+        self.vocab_size = 0
+        self.char_to_index = {}
+        self.index_to_char = {}
     
 
     def _encode(self, input_indices: List[int], freq: List[float], bytes_per_element=1) -> bytes:
@@ -108,12 +111,36 @@ class Encoder:
             return compressor.decompress(encoded_data)
     
     
-    def _encode_str(self, input_string:str):
-        input_indices = [ord(c) for c in input_string]
+    def _encode_str(self, input_string: Union[str, bytes]):
+        if isinstance(input_string, str):
+            input_indices = [ord(c) for c in input_string]
+        elif isinstance(input_string, bytes):
+            input_indices = list(input_string)
+        else:
+            raise TypeError("input_string must be of type str or bytes")
+        
         freq = [0] * 256
         for index in input_indices:
             freq[index] += 1
         return self._encode(input_indices, freq)
+    
+    
+    
+    def _create_vocabulary(self, input_string: str):   
+        unique_chars = sorted(set(input_string))
+        self.vocab_size = len(unique_chars)
+        self.char_to_index = {char: idx for idx, char in enumerate(unique_chars)}
+        self.index_to_char = {idx: char for idx, char in enumerate(unique_chars)}
+
+    def _string_to_indices(self, input_string: str) -> List[int]:
+        return [self.char_to_index[char] for char in input_string]
+
+    def _indices_to_string(self, indices: List[int]) -> str:
+        return ''.join(self.index_to_char[idx] for idx in indices)
+    
+    
+    
+    
 
 
 class AdaptiveEncoder:

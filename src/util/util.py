@@ -1,7 +1,43 @@
+import numpy as np
+import random
+import torch
 import math
 from collections import Counter
-from exampleData import sample4,sample2, sample1
 from typing import List
+
+
+def set_seed(seed: int):
+    # Set the seed for PyTorch
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)  # if you are using multi-GPU.
+    
+    # Set the seed for NumPy
+    np.random.seed(seed)
+    
+    # Set the seed for Python's built-in random module
+    random.seed(seed)
+    
+    # Ensure deterministic behavior in PyTorch
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    
+    
+def load_dataset(name: str, char_count: int = None):
+    
+    if name == "mozilla":
+        mode = "rb"
+    else:
+        mode = "r"
+        name = name + ".txt"
+    
+    with open(f"datasets/data/{name}", mode) as f:
+        data = f.read()
+    if char_count is not None:
+        data = data[:char_count]
+    return data
+
+
 
 def calculate_entropy(byte_data: str) -> float:
 
@@ -30,12 +66,3 @@ def calculate_entropy_list(int_data: List[int]) -> float:
     entropy = -sum(p * math.log2(p) for p in probabilities)
     
     return entropy
-
-# Example usage
-if __name__ == "__main__":
-    file_path = './datasets/files_to_be_compressed/chr20.txt'
-    with open(file_path, 'rb') as file:
-        byte_data = file.read()
-        
-    entropy = calculate_entropy(byte_data)
-    print(f"Entropy of the file: {entropy:.4f} bits")

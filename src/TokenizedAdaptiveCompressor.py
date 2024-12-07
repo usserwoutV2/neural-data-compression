@@ -2,8 +2,6 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from typing import List
-import sys
-import os
 from tqdm import tqdm  
 import numpy as np
 import time
@@ -16,15 +14,15 @@ from tokenizers.pre_tokenizers import ByteLevel
 from tokenizers.decoders import ByteLevel as ByteLevelDecoder
 from tokenizers.processors import BertProcessing
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from Encoder import Encoder, AdaptiveEncoder
-from dynamic.SupporterModel import SupporterModel
-from stats import show_plot
-from util import  load_dataset, set_seed
+from encoders.Encoder import Encoder, AdaptiveEncoder
+from SupporterModel import SupporterModel
+from util.stats import show_plot
+from util.util import  load_dataset, set_seed
 
-    
-class AdaptiveCompressor(Encoder):
-    def __init__(self, hidden_size: int = 64, seed=42, initial_learning_rate: float = 0.1, min_learning_rate: float = 0.001, decay_rate: float = 0.99, batch_size=8, encode_method="arithmetic"):
+del_me = []
+
+class TokenizedAdaptiveCompressor(Encoder):
+    def __init__(self, hidden_size: int = 64, seed=42, initial_learning_rate: float = 0.1, min_learning_rate: float = 0.001, decay_rate: float = 0.99, batch_size=8, encode_method="arithmetic", input_type="utf8"):
         set_seed(seed)
         self.hidden_size = hidden_size
         self.initial_learning_rate = initial_learning_rate
@@ -42,12 +40,13 @@ class AdaptiveCompressor(Encoder):
         self.tokenizer = Tokenizer(BPE())
         self.tokenizer.pre_tokenizer = ByteLevel()
         self.tokenizer.decoder = ByteLevelDecoder()
-        self.tokenizer.post_processor = BertProcessing(("[CLS]", 1), ("[SEP]", 2))
+        self.tokenizer.post_processor = BertProcessing(("[CLS]", 1), ("[SEP]", 2),)
+        self.input_type = input_type
 
     def _create_vocabulary(self):
         
         
-        self.supporter_model = SupporterModel(self.hidden_size, self.hidden_size, self.vocab_size, quantize=False)
+        self.supporter_model = SupporterModel(self.hidden_size, self.hidden_size, self.vocab_size , quantize=False)
         self.optimizer = optim.Adam(self.supporter_model.parameters(), lr=self.initial_learning_rate)
 
     def _update_learning_rate(self):
@@ -73,7 +72,11 @@ class AdaptiveCompressor(Encoder):
         return ''.join(chr(idx) for idx in indices)
     
     def compress(self, input_string: str) -> bytes:
-        self.vocab_size = max(150, min(1000, round(len(input_string) / 333)  ))
+        if isinstance(input_string, bytes):
+            input_string = input_string.decode('latin1')
+
+        self.vocab_size = max(150 if self.input_type == "utf8" else 260, min(1500, round(len(input_string) / 250)  ))
+        print(self.vocab_size)
         self._create_vocabulary()
         self.train_tokenizer([input_string])
         
@@ -107,6 +110,8 @@ class AdaptiveCompressor(Encoder):
             # Find the rank positions
             ranks = torch.argmax(mask.int(), dim=1).tolist()
             
+            
+            
             compressed_indices.extend(ranks)
 
             # Encode each rank
@@ -128,18 +133,21 @@ class AdaptiveCompressor(Encoder):
         
         
         encoded_data = adaptive_encoder.finish_encoding()
+        global del_me
+        del_me = compressed_indices
         input_size_bytes = len(compressed_indices).to_bytes(8, byteorder='big')
         
         tokens = lzma.compress(self.tokenizer.to_str().encode('utf-8'))
         tokens_size_bytes = len(tokens).to_bytes(8, byteorder='big')
         
         vocab_size_bytes = self.vocab_size.to_bytes(2, byteorder='big')
+        
+        
+        
         return input_size_bytes + tokens_size_bytes + vocab_size_bytes + prefix + tokens + encoded_data
 
 
-    def decompress(self, compressed_data: bytes) -> str:
-        
-        
+    def decompress(self, compressed_data: bytes) -> str: 
         num_symbols = int.from_bytes(compressed_data[:8], byteorder='big')
         tokens_size = int.from_bytes(compressed_data[8:16], byteorder='big')
         self.vocab_size = int.from_bytes(compressed_data[16:18], byteorder='big')
@@ -157,6 +165,8 @@ class AdaptiveCompressor(Encoder):
                 
         batch_input_sequences = []
         batch_targets = []
+        
+        global del_me
 
         for i in tqdm(range(num_symbols), desc="Decompressing"):
             input_sequence = decompressed_indices[-self.sequence_length:]
@@ -167,6 +177,13 @@ class AdaptiveCompressor(Encoder):
                 probs = torch.softmax(output[:, -1, :], dim=1)
                 target_index = torch.topk(probs, decoded_ranks[i] + 1, dim=1).indices[0, -1].item()
                 decompressed_indices.append(target_index)
+                
+                # if target_index != del_me[i + self.sequence_length]:
+                #     print(del_me[:100])
+                #     print(f"Index {i} does not match! {target_index} != {del_me[i]}")
+                #     exit(1)
+                    
+                
         
                 batch_input_sequences.append(input_sequence)
                 batch_targets.append(target_index)
@@ -192,12 +209,16 @@ class AdaptiveCompressor(Encoder):
 
             
         decompressed_string = self._indices_to_string(decompressed_indices)
-        return decompressed_string[2:]
-
+        
+        if self.input_type == "bytes":
+            decompressed_string = decompressed_string.encode('latin1')
+        if decompressed_string[0] != ' ': # remove special character from tokenizer
+            return decompressed_string[2:] 
+        return decompressed_string[1:]
 
 compression_method = "arithmetic"
-
-input_string = load_dataset("bible", 50_000)
+input_type = "utf8"
+input_string = load_dataset("bible", 1_000_000)
 
 
 def main():
@@ -207,26 +228,26 @@ def main():
     
     start_time = time.time()
 
-    compressor = AdaptiveCompressor(hidden_size=64, initial_learning_rate=0.001, min_learning_rate=0.00005, decay_rate=0.9999, encode_method=compression_method, batch_size=64)
+    compressor = TokenizedAdaptiveCompressor(hidden_size=64, initial_learning_rate=0.001, min_learning_rate=0.00005, decay_rate=0.9999, encode_method=compression_method, batch_size=128, input_type=input_type)
     compressed_data = compressor.compress(input_string)
     print(f"Compression took {time.time() - start_time:.2f} seconds")
     print(f"Compressed data size: {len(compressed_data)} bytes")
 
-    # start_time = time.time()
-    # decompressor = AdaptiveCompressor(hidden_size=64, initial_learning_rate=0.001, min_learning_rate=0.00005, decay_rate=0.9999, encode_method=compression_method, batch_size=32)
-    # decompressed_string = decompressor.decompress(compressed_data)
-    # print(f"Decompression took {time.time() - start_time:.2f} seconds")
+    start_time = time.time()
+    decompressor = TokenizedAdaptiveCompressor(hidden_size=64, initial_learning_rate=0.001, min_learning_rate=0.00005, decay_rate=0.9999, encode_method=compression_method, batch_size=128, input_type=input_type)
+    decompressed_string = decompressor.decompress(compressed_data)
+    print(f"Decompression took {time.time() - start_time:.2f} seconds")
 
     
-    # if input_string != decompressed_string:
+    if input_string != decompressed_string:
         
         
-    #     print(input_string[-100:])   
-    #     print("--------------------")
-    #     print(decompressed_string[-100])
-    #     print("Strings do not match!")
-    # else:
-    #     print("Decompression successful!")
+        print(input_string[-100:])   
+        print("--------------------")
+        print(decompressed_string[-100:])
+        print("Strings do not match!")
+    else:
+        print("Decompression successful!")
 
 def compress_without_model():
     
@@ -236,4 +257,4 @@ def compress_without_model():
 
 if __name__ == "__main__":
     main()
-    compress_without_model()
+    #compress_without_model()

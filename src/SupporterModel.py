@@ -6,7 +6,7 @@ import torch.nn.functional as F
 # IDEA: https://arxiv.org/pdf/1911.03572 (see Supporter model section)
 class SupporterModel(nn.Module):
 
-    def __init__(self, input_size: int, hidden_size: int, vocab_size: int, quantize: bool = False):
+    def __init__(self, input_size: int, hidden_size: int, vocab_size: int, quantize: bool = False, use_rnn: bool = False):
         super(SupporterModel, self).__init__()
         
         self.embedding = nn.Embedding(vocab_size, hidden_size)
@@ -16,22 +16,27 @@ class SupporterModel(nn.Module):
             nn.Tanh(),  # Appears to perform better than ReLU
             nn.Linear(hidden_size, hidden_size),   
         )
-                
-        self.residual_nn = nn.Sequential(
-            ResidualBlock(hidden_size, hidden_size),
-            ResidualBlock(hidden_size, hidden_size),
-            nn.Linear(hidden_size, hidden_size),
-        )
+        self.use_rnn = use_rnn
+        
+        
+        if use_rnn:    
+            self.rnn_nn = nn.Sequential(
+                RNNBlock(hidden_size, hidden_size, num_layers=1),
+            )
+        else:
+            self.residual_nn = nn.Sequential(
+                ResidualLinearBlock(hidden_size, hidden_size),
+                ResidualLinearBlock(hidden_size, hidden_size),
+                nn.Linear(hidden_size, hidden_size),
+            )
         
         
         self.final_linear = nn.Linear(hidden_size * 3, vocab_size)
         
-        #self.lstm_block = LSTMBlock(hidden_size, hidden_size, num_layers=2)
+        self.lstm_block = LSTMBlock(hidden_size, hidden_size, num_layers=1)
 
         #self.rnn_nn = nn.RNN(hidden_size, hidden_size, num_layers=2, batch_first=True)
-        self.rnn_nn = nn.Sequential(
-            RNNBlock(hidden_size, hidden_size, num_layers=1),
-        )
+        
         
                 
         # self.gru_nn = nn.GRU(hidden_size, hidden_size, 2, batch_first=False)
@@ -63,11 +68,10 @@ class SupporterModel(nn.Module):
         
         linear_out = self.linear_nn(embedded)
         dense_out = self.dense_nn(embedded)
-        #residual_out = self.residual_nn(embedded)
-
-        rnn_out = self.rnn_nn(embedded)
         
-        combined_out = torch.cat((linear_out, dense_out, rnn_out), dim=-1)
+        out = self.rnn_nn(embedded) if self.use_rnn else self.residual_nn(embedded)
+    
+        combined_out = torch.cat((linear_out, dense_out, out), dim=-1)
         
         final_out = self.final_linear(combined_out)
         
@@ -88,10 +92,19 @@ class RNNBlock(nn.Module):
         out, _ = self.rnn(x)
         return out
 
+
+class LSTMBlock(nn.Module):
+        def __init__(self, input_size, hidden_size, num_layers):
+            super(LSTMBlock, self).__init__()
+            self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True)
+
+        def forward(self, x):
+            out, _ = self.lstm(x)
+            return out
     
-class ResidualBlock(nn.Module):
+class ResidualLinearBlock(nn.Module):
     def __init__(self, in_features: int, out_features: int):
-        super(ResidualBlock, self).__init__()
+        super(ResidualLinearBlock, self).__init__()
         self.linear1 = nn.Linear(in_features, out_features)
         self.linear2 = nn.Linear(out_features, out_features)
         
