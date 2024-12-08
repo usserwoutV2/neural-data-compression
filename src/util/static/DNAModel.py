@@ -6,14 +6,19 @@ import time
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from train import create_and_train_model, load_model, save_model
 
+LEGAL_CHARACTERS = ["A", "C", "G", "T"]
+
 class DNAModel:
-    def __init__(self, input_string: str = None, model_path: str = 'char_model.keras', lookup_path: str = 'char_lookup.pkl'):
+    def __init__(self, input_string: str = None, model_path: str = os.path.join(os.environ['VSC_DATA'], 'char_model.keras'), lookup_path: str = os.path.join(os.environ['VSC_DATA'], 'char_lookup.pkl')):
         model_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../', model_path))
         lookup_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../', lookup_path))
+        self.model_path = model_path
+        self.lookup_path = lookup_path
         self.model = None
-        self.char_to_index = None
-        self.index_to_char = None
-        
+        self.legal_charactes = LEGAL_CHARACTERS
+        self.char_to_index = {char: idx for idx, char in enumerate(LEGAL_CHARACTERS)}
+        self.index_to_char = {idx: char for idx, char in self.char_to_index.items()}
+        print(model_path)
         if input_string and not os.path.exists(model_path):
             self._train_new_model(input_string)
         else:
