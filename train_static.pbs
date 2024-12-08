@@ -2,12 +2,12 @@
 
 #PBS -N train_static                   ## job name
 #PBS -l nodes=1:ppn=8               ## 1 nodes, 4 cores per node
-#PBS -l walltime=72:00:00            ## max. 6h of wall time
-#PBS -l mem=25gb                    ## 32GB of memory
+#PBS -l walltime=10:00:00            ## max. 6h of wall time
+#PBS -l mem=16gb                    ## 32GB of memory
 
 PIP_DIR="$VSC_SCRATCH/site-packages" # directory to install packages
 CACHE_DIR="$VSC_SCRATCH/.cache" # directory to use as cache
-cluster="donphan"
+cluster="doduo"
 
 # Load Python
 module load Python/3.10.4-GCCcore-11.3.0
@@ -15,7 +15,7 @@ module load Python/3.10.4-GCCcore-11.3.0
 module swap cluster/$cluster
 
 # Activate virtual environment
-source venv_$cluster/bin/activate
+source $VSC_DATA/venv_$cluster/bin/activate
 
 # Unset OMP_PROC_BIND
 unset OMP_PROC_BIND
@@ -24,7 +24,8 @@ unset OMP_PROC_BIND
 export OMP_NUM_THREADS=8
 
 # Start script
-cd $PBS_O_WORKDIR
+#cd $PBS_O_WORKDIR
+cd $VSC_DATA
 
 # Run the training script (make sure that _char_model.keras doesn't exist, otherwise the training will be skipped)
 PYTHONPATH="$PYTHONPATH:$PIP_DIR" python ~/ML-project/src/static/StaticCompressor.py

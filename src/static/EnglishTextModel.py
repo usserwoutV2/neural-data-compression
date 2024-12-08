@@ -6,9 +6,9 @@ import time
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from train import create_and_train_model, load_model, save_model
 
-LEGAL_CHARACTERS = ["A", "C", "G", "T"]
+LEGAL_CHARACTERS = [chr(i) for i in range(32, 127)] + ['\n']  # ASCII characters from space to ~
 
-class DNAModel:
+class EnglishTextModel:
     def __init__(self, input_string: str = None, model_path: str = os.path.join(os.environ['VSC_DATA'], 'char_model.keras'), lookup_path: str = os.path.join(os.environ['VSC_DATA'], 'char_lookup.pkl')):
         model_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../', model_path))
         lookup_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../', lookup_path))
@@ -39,4 +39,5 @@ class DNAModel:
         input_indices = np.array([[self.char_to_index.get(char, 0) for char in input_string[-sequence_length:]]])
         predictions = self.model.predict(input_indices, verbose=0)[0]
         top_indices = predictions.argsort()[-alphabet_size:][::-1]
+
         return [self.index_to_char[idx] for idx in top_indices]

@@ -7,14 +7,18 @@ import time
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from arithmeticEncoder import SimpleFrequencyTable, ArithmeticEncoder, ArithmeticDecoder, BitOutputStream, BitInputStream
 from DNAModel import DNAModel
-from exampleData import sample1
+from EnglishTextModel import EnglishTextModel
 
 class StaticCompressor:
-    def __init__(self, model: DNAModel, alphabet: str = 'ACGT'):
+    # change the model according to what AI you want to use
+    def __init__(self, model: EnglishTextModel):
         self.model = model
-        self.alphabet = alphabet
-        self.alphabet_size = len(alphabet)
+        self.alphabet = model.legal_charactes
+        self.alphabet_size = len(self.alphabet)
+        print("Alphabet size:", self.alphabet_size)
         self.freq = [0] * self.alphabet_size
+        self.char_to_index = {char: idx for idx, char in enumerate(self.alphabet)}
+        self.index_to_char = {idx: char for idx, char in enumerate(self.alphabet)}
 
     def compress(self, input_string: str) -> bytes:
         indices = self._translate_to_index(input_string)
@@ -34,14 +38,23 @@ class StaticCompressor:
 
         for i in range(model_input_length, len(input_string) - 1):
             substr = input_string[i-19:i+1]
-            predicted = self.model.predict_next_chars(substr)
-            #print(f"After '{substr}', predicted next chars: {predicted} Expected: {input_string[i + 1].lower()}")
+            predicted = self.model.predict_next_chars(substr, model_input_length+1, alphabet_size=self.alphabet_size)
             
-            index = predicted.index(input_string[i + 1].upper())
+            if input_string[i + 1] in predicted:
+                index = predicted.index(input_string[i + 1])
+            else:
+                index = self.char_to_index.get(input_string[i + 1], 99)
+                print(f"Character '{input_string[i + 1]}' not in prediction. Using fallback index {index}.")
+            
             output.append(index)
             self.freq[index] += 1
-            original[input_string[i + 1].upper()] += 1
-            if input_string[i + 1].lower() == predicted[0].lower():
+            if input_string[i + 1] in original:
+                original[input_string[i + 1]] += 1
+            else:
+                original[input_string[i + 1]] = 1
+                print(f"Character '{input_string[i + 1]}' not found in original dictionary. Adding it with count 1.")
+            
+            if input_string[i + 1] == predicted[0]:
                 correct += 1
 
         accuracy = correct / (len(input_string) - 1) * 100
@@ -57,8 +70,7 @@ class StaticCompressor:
 
         for i in range(len(input_indices)):
             substr = "".join(output[model_input_length+i-20:model_input_length+i+1])
-            predicted = self.model.predict_next_chars(substr)
-            #print(f"After '{substr}', predicted next chars: {predicted}")
+            predicted = self.model.predict_next_chars(substr, model_input_length+1, alphabet_size=self.alphabet_size)
             output.append(predicted[input_indices[i]])
 
         return "".join(output)
@@ -95,10 +107,10 @@ class StaticCompressor:
         return decoded_list
 
 def main():
-    dataset_path = 'datasets/files_to_be_compressed/celegchr_ultrasmall.txt'
+    dataset_path = os.path.join(os.environ['VSC_HOME'], 'ML-project/datasets/data/bsb_validation.txt')
     with open(dataset_path, 'r') as file:
         input_string = file.read()
-    model = DNAModel(input_string)
+    model = EnglishTextModel(input_string)
     compressor = StaticCompressor(model)
 
     start_time = time.time()
@@ -107,8 +119,6 @@ def main():
     print(f"Compression time: {end_time - start_time:.2f} seconds")
     print("Compressed data:", compressed_data)
 
-    # There is still an issue with the decompression, sometimes the ending is not correct
-    # This issue has something to do with arithmetic encoding/decoding
     decompressed_str = compressor.decompress(compressed_data, len(input_string), input_string[:20])
     print(f"Decompressed string: {decompressed_str}")
     print(f"Original string:     {input_string}")

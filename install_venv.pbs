@@ -26,7 +26,7 @@ fi
 
 # De naam van de virtual environment die we gaan maken
 # Deze hangt af van de gekozen cluster
-VENV_NAME="venv_$cluster"
+VENV_NAME="$VSC_DATA/venv_$cluster"
 
 # Indien er al zo'n virtual environment bestaat, verwijder ze
 #if [ -d $VENV_NAME ];
@@ -44,4 +44,6 @@ export LD_LIBRARY_PATH=$VENV_NAME/lib:$LD_LIBRARY_PATH
 
 # Hier alle pip installs
 pip3 install tensorflow
+pip3 install hyperopt
+pip3 install numpy
 # ....
