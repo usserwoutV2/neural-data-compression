@@ -16,7 +16,6 @@ def show_plot(input_string:list[int], plot="print"):
 def print_frequencies(frequencies):
     # Sort the frequencies dictionary by key (label) in ascending order
     sorted_frequencies = dict(sorted(frequencies.items(), key=lambda item: item[0]))
-    print(sorted_frequencies)
     
     labels = list(sorted_frequencies.keys())
     data = list(sorted_frequencies.values())

@@ -7,10 +7,12 @@ from SupporterModel import SupporterModel
 import pickle
 import time
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
+from tqdm import tqdm  
 
 
 from encoders.Encoder import Encoder
 from util.util import set_seed, load_dataset
+from util.match_string import match_string
 
 import lzma
 from tokenizers import Tokenizer
@@ -34,9 +36,16 @@ class DynamicCompressor(Encoder):
         self.tokenizer.decoder = ByteLevelDecoder()
         self.tokenizer.post_processor = BertProcessing(("[CLS]", 1), ("[SEP]", 2))
         self.vocab_size = 0 
-        self.use_rnn=False
+        self.use_rnn=True
         self.alphabet_size = alphabet_size
         self.input_type = input_type
+        
+        if torch.cuda.is_available():
+            self.device = torch.device("cuda")
+        elif torch.backends.mps.is_available():
+            self.device = torch.device("mps")
+        else:
+            self.device = torch.device("cpu")
         
     def train_tokenizer(self, texts: List[str]):
         self.vocab_size = round(max(150, min(1000, round(len(texts[0]) / 200)  ))  * (self.alphabet_size / 128))
@@ -140,7 +149,7 @@ class DynamicCompressor(Encoder):
         # Decompress the data using arithmetic decoding and the SupporterModel
 
         decoded_indices = self._decode(compressed_data, freq, output_size, bytes_per_element=1 if self.vocab_size < 256 else 2)
-        max_seq_len = 20  # Define a fixed maximum sequence length
+        max_seq_len = 64  if self.use_rnn else 10
         decompressed_indices = [first_char_index]  # Initialize the list to hold decompressed indices
         input_buffer = [first_char_index]
         
@@ -151,7 +160,7 @@ class DynamicCompressor(Encoder):
         supporter_model = self.supporter_model
         supporter_model.eval()  # Set the model to evaluation mode
 
-        for i in range(output_size ):
+        for i in tqdm(range(output_size), desc="Decompressing"):
             with torch.no_grad():
                 # Get the model's output for the last position
                 logits = supporter_model(input_tensor)[0, -1]
@@ -249,12 +258,7 @@ def main():
     start_time = time.time()
     decompressed_string = decompressor.decompress(compressed_data, freq, indices_length, first_char_index)
     print(f"Decompression time: {time.time() - start_time:.2f} seconds")
-    if input_string != decompressed_string:
-        print("Strings do not match!")
-        print(input_string[:180])
-        print("-------------------------------------")
-        print(decompressed_string[:180])
-    else:
+    if match_string(input_string, decompressed_string):
         print("Decompression successful!")
     
     

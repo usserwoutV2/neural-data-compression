@@ -1,5 +1,5 @@
 
-datasets/data/*
+
 datasets/files_to_be_compressed/*
 compressed_data.pkl
 
