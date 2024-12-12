@@ -23,6 +23,7 @@ class SupporterModel(nn.Module):
             self.rnn_nn = nn.Sequential(
                 RNNBlock(hidden_size, hidden_size, num_layers=1),
             )
+            
         else:
             self.residual_nn = nn.Sequential(
                 ResidualLinearBlock(hidden_size, hidden_size),
@@ -33,8 +34,6 @@ class SupporterModel(nn.Module):
         
         self.final_linear = nn.Linear(hidden_size * 3, vocab_size)
         
-        self.lstm_block = LSTMBlock(hidden_size, hidden_size, num_layers=1)
-
         #self.rnn_nn = nn.RNN(hidden_size, hidden_size, num_layers=2, batch_first=True)
         
         
@@ -69,7 +68,12 @@ class SupporterModel(nn.Module):
         linear_out = self.linear_nn(embedded)
         dense_out = self.dense_nn(embedded)
         
-        out = self.rnn_nn(embedded) if self.use_rnn else self.residual_nn(embedded)
+        
+        if self.use_rnn:
+            out = self.rnn_nn(embedded)
+            
+        else:
+            out = self.residual_nn(embedded)
     
         combined_out = torch.cat((linear_out, dense_out, out), dim=-1)
         
@@ -174,7 +178,7 @@ class TransformerBlock(nn.Module):
 class AttentionBlock(nn.Module):
     def __init__(self, input_size, hidden_size):
         super(AttentionBlock, self).__init__()
-        self.attention = nn.MultiheadAttention(input_size, hidden_size)
+        self.attention = nn.MultiheadAttention(input_size, hidden_size, batch_first=True)
 
     def forward(self, x):
         x, _ = self.attention(x, x, x)

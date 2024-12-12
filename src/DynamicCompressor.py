@@ -7,6 +7,9 @@ import os
 from  SupporterModel import SupporterModel
 import pickle
 import time
+from tqdm import tqdm  
+
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from encoders.Encoder import Encoder
@@ -23,7 +26,7 @@ class DynamicCompressor(Encoder):
         self.learning_rate = learning_rate
         self.epochs = epochs
         
-        self.use_rnn = False
+        self.use_rnn = True
         self.input_type = input_type
 
     
@@ -111,7 +114,7 @@ class DynamicCompressor(Encoder):
         # Decompress the data using arithmetic decoding and the SupporterModel
         decoded_indices = self._decode(compressed_data, freq, output_size - 1)
 
-        max_seq_len = 10  # Define a fixed maximum sequence length
+        max_seq_len = 64  if self.use_rnn else 10
         decompressed_indices = [first_char_index]  # Initialize the list to hold decompressed indices
         input_buffer = [first_char_index]
         
@@ -122,7 +125,7 @@ class DynamicCompressor(Encoder):
         supporter_model = self.supporter_model
         supporter_model.eval()  # Set the model to evaluation mode
 
-        for i in range(output_size - 1):
+        for i in tqdm(range(output_size - 1), desc="Decompressing"):
             with torch.no_grad():
                 # Get the model's output for the last position
                 logits = supporter_model(input_tensor)[0, -1]
@@ -182,12 +185,7 @@ class DynamicCompressor(Encoder):
 
 encode_method = "arithmetic"
 input_type = "utf8"
-input_string = load_dataset("celegchr", 1_000_000)
-
-# 50_000: (20240) 21828  | 27452 -> improvement rate: 0,2048666764
-# 100_000  44175 | 55014 -> improvement rate: 0,1970225761
-# 200_000  88859 | 110178 -> improvement rate: 0,1934959792 
-# 500_000  219724 | 274165 -> improvement rate: 0,1985702041
+input_string = load_dataset("bible", 10_000)
 
 
 def main():

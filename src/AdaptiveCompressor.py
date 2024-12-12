@@ -6,11 +6,13 @@ from tqdm import tqdm
 import random
 import numpy as np
 import time
+import lzma
 
 from encoders.Encoder import Encoder, AdaptiveEncoder
 from SupporterModel import SupporterModel
 from util.stats import show_plot
 from util.util import  load_dataset
+from util.match_string import match_string
 
 def set_seed(seed: int):
     # Set the seed for PyTorch
@@ -44,11 +46,11 @@ class AdaptiveCompressor(Encoder):
         self.optimizer = None
         self.criterion = nn.CrossEntropyLoss()
         self.batch_size = batch_size
-        self.sequence_length = 32 
         self.encode_method = encode_method
         self.vocab_size = 128 if input_type == "utf8" else 256
         self.input_type = input_type
         self.use_rnn = True
+        self.sequence_length = 32 
 
 
     def start_encoding(self):
@@ -120,7 +122,6 @@ class AdaptiveCompressor(Encoder):
         encoded_data = adaptive_encoder.finish_encoding()
         input_size_bytes = len(input_string).to_bytes(8, byteorder='big')
         
-        
         # Return the size, prefix, and encoded data
         return self.vocab_size.to_bytes(2, byteorder='big') + input_size_bytes + prefix + encoded_data
 
@@ -181,13 +182,24 @@ class AdaptiveCompressor(Encoder):
 
 compression_method = "arithmetic"
 input_type = "utf8"
-input_string = load_dataset("bible", 1_000_000)
+input_string = load_dataset("bible",1000_000)
+
+# Model | execution time | output size (bytes, 100KB input size)
+# LSMT 27 -> 43868
+# Residual 13 -> 45457
+# GRU 36 -> 42876
+# Transformer 112.35 -> 45884
+# Nothing 9 -> 46511
+# RNN 1 hidden layer  13.61 -> 42774
+# RNN 2 hidden layers 16.82 -> 42019
+# RNN 3 hidden layers 19.74 -> 42710
+# Self attention 208.51 -> 45467
 
 
 def main():
     
     print(f"Original data size: {len(input_string)} bytes")
-    show_plot(input_string)
+    #show_plot(input_string)
     
     start_time = time.time()
 
@@ -202,12 +214,7 @@ def main():
     # print(f"Decompression took {time.time() - start_time:.2f} seconds")
 
     
-    # if input_string != decompressed_string:
-    #     print(input_string[:100])   
-    #     print("--------------------")
-    #     print(decompressed_string[:100])
-    #     print("Strings do not match!")
-    # else:
+    # if match_string(input_string, decompressed_string):
     #     print("Decompression successful!")
 
 def compress_without_model():

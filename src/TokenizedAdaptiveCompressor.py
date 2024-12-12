@@ -18,6 +18,7 @@ from encoders.Encoder import Encoder, AdaptiveEncoder
 from SupporterModel import SupporterModel
 from util.stats import show_plot
 from util.util import  load_dataset, set_seed
+from util.match_string import match_string
 
 del_me = []
 
@@ -31,10 +32,11 @@ class TokenizedAdaptiveCompressor(Encoder):
         self.current_step = 0
         self.vocab_size = 500
         self.supporter_model = None
+        self.use_rnn= True
+        self.sequence_length = 32
         self.optimizer = None
         self.criterion = nn.CrossEntropyLoss()
         self.batch_size = batch_size
-        self.sequence_length = 32 
         self.encode_method = encode_method
         
         self.tokenizer = Tokenizer(BPE())
@@ -44,8 +46,7 @@ class TokenizedAdaptiveCompressor(Encoder):
         self.input_type = input_type
 
     def _create_vocabulary(self):
-        
-        
+
         self.supporter_model = SupporterModel(self.hidden_size, self.hidden_size, self.vocab_size , quantize=False)
         self.optimizer = optim.Adam(self.supporter_model.parameters(), lr=self.initial_learning_rate)
 
@@ -76,7 +77,6 @@ class TokenizedAdaptiveCompressor(Encoder):
             input_string = input_string.decode('latin1')
 
         self.vocab_size = max(150 if self.input_type == "utf8" else 260, min(1500, round(len(input_string) / 250)  ))
-        print(self.vocab_size)
         self._create_vocabulary()
         self.train_tokenizer([input_string])
         
@@ -110,8 +110,6 @@ class TokenizedAdaptiveCompressor(Encoder):
             # Find the rank positions
             ranks = torch.argmax(mask.int(), dim=1).tolist()
             
-            
-            
             compressed_indices.extend(ranks)
 
             # Encode each rank
@@ -129,9 +127,6 @@ class TokenizedAdaptiveCompressor(Encoder):
             self.current_step += 1
             self._update_learning_rate()
         
-        
-        
-        
         encoded_data = adaptive_encoder.finish_encoding()
         global del_me
         del_me = compressed_indices
@@ -141,9 +136,7 @@ class TokenizedAdaptiveCompressor(Encoder):
         tokens_size_bytes = len(tokens).to_bytes(8, byteorder='big')
         
         vocab_size_bytes = self.vocab_size.to_bytes(2, byteorder='big')
-        
-        
-        
+            
         return input_size_bytes + tokens_size_bytes + vocab_size_bytes + prefix + tokens + encoded_data
 
 
@@ -178,8 +171,7 @@ class TokenizedAdaptiveCompressor(Encoder):
                 target_index = torch.topk(probs, decoded_ranks[i] + 1, dim=1).indices[0, -1].item()
                 decompressed_indices.append(target_index)
                 
-                # if target_index != del_me[i + self.sequence_length]:
-                #     print(del_me[:100])
+                # if target_index != del_me[i]:
                 #     print(f"Index {i} does not match! {target_index} != {del_me[i]}")
                 #     exit(1)
                     
@@ -239,14 +231,7 @@ def main():
     print(f"Decompression took {time.time() - start_time:.2f} seconds")
 
     
-    if input_string != decompressed_string:
-        
-        
-        print(input_string[-100:])   
-        print("--------------------")
-        print(decompressed_string[-100:])
-        print("Strings do not match!")
-    else:
+    if match_string(input_string, decompressed_string):
         print("Decompression successful!")
 
 def compress_without_model():
