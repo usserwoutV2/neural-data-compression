@@ -9,7 +9,7 @@ from train import create_and_train_model, load_model, save_model
 LEGAL_CHARACTERS = ["A", "C", "G", "T"]
 
 class DNAModel:
-    def __init__(self, input_string: str = None, model_path: str = os.path.join(os.environ['VSC_DATA'], 'char_model.keras'), lookup_path: str = os.path.join(os.environ['VSC_DATA'], 'char_lookup.pkl')):
+    def __init__(self, input_string: str = None, model_path: str = os.path.join(os.environ['VSC_DATA'], 'char_model_DNA.keras'), lookup_path: str = os.path.join(os.environ['VSC_DATA'], 'char_lookup_DNA.pkl')):
         model_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../', model_path))
         lookup_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../', lookup_path))
         self.model_path = model_path
@@ -35,11 +35,11 @@ class DNAModel:
         self.model, self.char_to_index, self.index_to_char = load_model(self.model_path, self.lookup_path)
         print("Model loaded.")
 
-    def predict_next_chars(self, input_string: str, sequence_length: int = 20) -> List[str]:
+    def predict_next_chars(self, input_string: str, sequence_length: int = 20, alphabet_size: int = 4) -> List[str]:
         input_indices = np.array([[self.char_to_index.get(char, 0) for char in input_string[-sequence_length:]]])
-        start_time = time.time()
         predictions = self.model.predict(input_indices, verbose=0)[0]
-        end_time = time.time()
-        #print(f"Prediction took {end_time - start_time:.2f} seconds.")
-        top_indices = predictions.argsort()[-4:][::-1]
+        top_indices = predictions.argsort()[-alphabet_size:][::-1]
         return [self.index_to_char[idx] for idx in top_indices]
+
+    def predict(self, input_tensor):
+        return self.model.predict(input_tensor, verbose=0)

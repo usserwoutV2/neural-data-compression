@@ -23,7 +23,7 @@ learning_rate = [0.001, 0.01, 0.1]
 tf.keras.mixed_precision.set_global_policy('mixed_float16')
 
 # Define the dataset path
-dataset_path = '/user/gent/465/vsc46596/ML-project/datasets/bsb_small.txt'
+dataset_path = os.path.join(os.environ['VSC_HOME'], 'ML-project/datasets/data/bsb_small.txt')
 
 # Generate all permutations
 permutations = list(itertools.product(sequence_length, epochs, batch_size, lstm, embedding_dimension, patience, learning_rate))

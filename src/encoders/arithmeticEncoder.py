@@ -613,45 +613,49 @@ class BitOutputStream:
   
   
 import io
-  
+import sys
+import os
+
 def main():
-    # Sample text to encode and decode
-    text = "ACATGACATGGGGGTTAAAAAAAAAAAAAA"
-    
+    dataset_path = os.path.join(os.environ['VSC_HOME'], 'ML-project/datasets/data/bsb_validation.txt')
+
+    # Read the input file
+    with open(dataset_path, 'r') as file:
+        text = file.read().strip()
+
     # Define the alphabet and create a frequency table for the 4 characters
-    alphabet = 'ACGT'
+    alphabet = [chr(i) for i in range(32, 127)] + ['\n']
     freqs = SimpleFrequencyTable([1] * len(alphabet))
-    
+
     # Encode the text
     input_stream = io.BytesIO()
     bit_output = BitOutputStream(input_stream)
     encoder = ArithmeticEncoder(32, bit_output)
-    
+
     for char in text:
         encoder.write(freqs, alphabet.index(char))
     encoder.finish()
-    
+
     # Get the encoded data before closing the stream
     encoded_data = input_stream.getvalue()
     bit_output.close()
-    
+
     print(f"Encoded data: {encoded_data}")
     print(f"Size of encoded data: {len(encoded_data)} bytes, original text: {len(text)} bytes, compression ratio: {len(encoded_data) / len(text):.2f}")
-    
+
     # Decode the text
     input_stream = io.BytesIO(encoded_data)
     bit_input = BitInputStream(input_stream)
     decoder = ArithmeticDecoder(32, bit_input)
-    
+
     decoded_text = ""
     for _ in range(len(text)):
         symbol = decoder.read(freqs)
         decoded_text += alphabet[symbol]
-    
+
     # Verify the decoded text matches the original text
     print(f"Decoded text: {decoded_text}")
     assert text == decoded_text, "Decoded text does not match the original text"
-
 
 if __name__ == "__main__":
     main()

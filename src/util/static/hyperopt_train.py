@@ -13,7 +13,7 @@ from train import create_sequences, save_model
 tf.keras.mixed_precision.set_global_policy('mixed_float16')
 
 # Define the dataset path
-dataset_path = '/user/gent/465/vsc46596/ML-project/datasets/data/bsb_small.txt'
+dataset_path = os.path.join(os.environ['VSC_HOME'], 'ML-project/datasets/data/bsb_small.txt')
 
 # Read the dataset
 with open(dataset_path, 'r') as file:

@@ -12,7 +12,8 @@ import sys
 tf.keras.mixed_precision.set_global_policy('mixed_float16')
 
 #TODO: make this general so it works with both DNA and english text
-LEGAL_CHARACTERS = [chr(i) for i in range(32, 127)] + ['\n']
+#LEGAL_CHARACTERS = [chr(i) for i in range(32, 127)] + ['\n']
+LEGAL_CHARACTERS = ["A", "C", "G", "T"]
 
 def create_sequences(text, sequence_length):
     char_to_index = {char: idx for idx, char in enumerate(LEGAL_CHARACTERS)}
@@ -72,13 +73,13 @@ def predict_next_chars(model, char_to_index, index_to_char, input_string, sequen
     predicted_chars = [index_to_char[idx] for idx in top_indices]
     return predicted_chars
 
-def save_model(model, char_to_index, index_to_char, model_path=os.path.join(os.environ['VSC_DATA'], 'char_model.keras'), lookup_path=os.path.join(os.environ['VSC_DATA'], 'char_lookup.pkl')):
+def save_model(model, char_to_index, index_to_char, model_path=os.path.join(os.environ['VSC_DATA'], 'char_model_DNA.keras'), lookup_path=os.path.join(os.environ['VSC_DATA'], 'char_lookup_DNA.pkl')):
     model.save(model_path)
     with open(lookup_path, 'wb') as handle:
         pickle.dump((char_to_index, index_to_char), handle, protocol=pickle.HIGHEST_PROTOCOL)
         
         
-def load_model(model_path=os.path.join(os.environ['VSC_DATA'], 'char_model.keras'), lookup_path=os.path.join(os.environ['VSC_DATA'], 'char_lookup.pkl')):
+def load_model(model_path=os.path.join(os.environ['VSC_DATA'], 'char_model_DNA.keras'), lookup_path=os.path.join(os.environ['VSC_DATA'], 'char_lookup_DNA.pkl')):
     model = keras_load_model(model_path)
     with open(lookup_path, 'rb') as handle:
         char_to_index, index_to_char = pickle.load(handle)

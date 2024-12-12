@@ -39,5 +39,7 @@ class EnglishTextModel:
         input_indices = np.array([[self.char_to_index.get(char, 0) for char in input_string[-sequence_length:]]])
         predictions = self.model.predict(input_indices, verbose=0)[0]
         top_indices = predictions.argsort()[-alphabet_size:][::-1]
-
         return [self.index_to_char[idx] for idx in top_indices]
+
+    def predict(self, input_tensor):
+        return self.model.predict(input_tensor, verbose=0)

@@ -3,20 +3,21 @@ import sys
 import io
 from typing import List
 import time
+import numpy as np
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'encoders')))
 from arithmeticEncoder import SimpleFrequencyTable, ArithmeticEncoder, ArithmeticDecoder, BitOutputStream, BitInputStream
 from DNAModel import DNAModel
 from EnglishTextModel import EnglishTextModel
 
 class StaticCompressor:
     # change the model according to what AI you want to use
-    def __init__(self, model: EnglishTextModel):
+    def __init__(self, model: DNAModel):
         self.model = model
         self.alphabet = model.legal_charactes
         self.alphabet_size = len(self.alphabet)
         print("Alphabet size:", self.alphabet_size)
-        self.freq = [0] * self.alphabet_size
+        self.freq = np.zeros(self.alphabet_size, dtype=int)
         self.char_to_index = {char: idx for idx, char in enumerate(self.alphabet)}
         self.index_to_char = {idx: char for idx, char in enumerate(self.alphabet)}
 
@@ -36,25 +37,33 @@ class StaticCompressor:
         correct = 0
         model_input_length = 19
 
-        for i in range(model_input_length, len(input_string) - 1):
-            substr = input_string[i-19:i+1]
-            predicted = self.model.predict_next_chars(substr, model_input_length+1, alphabet_size=self.alphabet_size)
+        # Prepare input tensor for batch predictions
+        input_indices = [self.char_to_index.get(char, 0) for char in input_string]
+        input_tensor = np.array([input_indices[i-19:i+1] for i in range(model_input_length, len(input_string) - 1)])
+        
+        # Use the model to predict probabilities
+        predictions = self.model.predict(input_tensor)
+        
+        for i in range(len(predictions)):
+            predicted_probs = predictions[i]
+            predicted_indices = np.argsort(predicted_probs)[-self.alphabet_size:][::-1]
+            predicted_chars = [self.index_to_char[idx] for idx in predicted_indices]
             
-            if input_string[i + 1] in predicted:
-                index = predicted.index(input_string[i + 1])
+            if input_string[i + model_input_length + 1] in predicted_chars:
+                index = predicted_chars.index(input_string[i + model_input_length + 1])
             else:
-                index = self.char_to_index.get(input_string[i + 1], 99)
-                print(f"Character '{input_string[i + 1]}' not in prediction. Using fallback index {index}.")
+                index = self.char_to_index.get(input_string[i + model_input_length + 1], 99)
+                print(f"Character '{input_string[i + model_input_length + 1]}' not in prediction. Using fallback index {index}.")
             
             output.append(index)
             self.freq[index] += 1
-            if input_string[i + 1] in original:
-                original[input_string[i + 1]] += 1
+            if input_string[i + model_input_length + 1] in original:
+                original[input_string[i + model_input_length + 1]] += 1
             else:
-                original[input_string[i + 1]] = 1
-                print(f"Character '{input_string[i + 1]}' not found in original dictionary. Adding it with count 1.")
+                original[input_string[i + model_input_length + 1]] = 1
+                print(f"Character '{input_string[i + model_input_length + 1]}' not found in original dictionary. Adding it with count 1.")
             
-            if input_string[i + 1] == predicted[0]:
+            if input_string[i + model_input_length + 1] == predicted_chars[0]:
                 correct += 1
 
         accuracy = correct / (len(input_string) - 1) * 100
@@ -70,8 +79,15 @@ class StaticCompressor:
 
         for i in range(len(input_indices)):
             substr = "".join(output[model_input_length+i-20:model_input_length+i+1])
-            predicted = self.model.predict_next_chars(substr, model_input_length+1, alphabet_size=self.alphabet_size)
-            output.append(predicted[input_indices[i]])
+            input_indices_substr = [self.char_to_index.get(char, 0) for char in substr]
+            input_tensor = np.array(input_indices_substr).reshape(1, -1)
+            
+            # Use the model to predict probabilities
+            predictions = self.model.predict(input_tensor)[0]
+            predicted_indices = np.argsort(predictions)[-self.alphabet_size:][::-1]
+            predicted_chars = [self.index_to_char[idx] for idx in predicted_indices]
+            
+            output.append(predicted_chars[input_indices[i]])
 
         return "".join(output)
 
@@ -107,10 +123,11 @@ class StaticCompressor:
         return decoded_list
 
 def main():
-    dataset_path = os.path.join(os.environ['VSC_HOME'], 'ML-project/datasets/data/bsb_validation.txt')
+    dataset_path = os.path.join(os.environ['VSC_HOME'], 'ML-project/datasets/files_to_be_compressed/celegchr_1mb.txt')
     with open(dataset_path, 'r') as file:
         input_string = file.read()
-    model = EnglishTextModel(input_string)
+    #model = EnglishTextModel(input_string)
+    model = DNAModel(input_string)
     compressor = StaticCompressor(model)
 
     start_time = time.time()
