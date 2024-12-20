@@ -11,7 +11,7 @@ import lzma
 from encoders.Encoder import Encoder, AdaptiveEncoder
 from SupporterModel import SupporterModel
 from util.stats import show_plot
-from util.util import  load_dataset,calculate_entropy
+from util.util import  load_dataset,calculate_entropy, calculate_entropy_list
 from util.match_string import match_string
 
 def set_seed(seed: int):
@@ -103,7 +103,7 @@ class AdaptiveCompressor(Encoder):
             ranks = torch.argmax(mask.int(), dim=1).tolist()
             
             compressed_indices.extend(ranks)
-
+            
             # Encode each rank
             for rank in ranks:
                 adaptive_encoder.encode_symbol(rank)
@@ -119,7 +119,6 @@ class AdaptiveCompressor(Encoder):
 
             self.current_step += 1
             self._update_learning_rate()
-
         encoded_data = adaptive_encoder.finish_encoding()
         input_size_bytes = len(input_string).to_bytes(8, byteorder='big')
         

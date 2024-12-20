@@ -58,19 +58,17 @@ class DynamicCompressor(Encoder):
         self.tokenizer.train_from_iterator(texts, self.trainer)
 
     def _string_to_indices(self, input_string: str) -> List[int]:
-        # Convert a string to a list of indices using the tokenizer
         return self.tokenizer.encode(input_string).ids
 
     def _indices_to_string(self, indices: List[int]) -> str:
-        # Convert a list of indices back to a string using the tokenizer
         return self.tokenizer.decode(indices)
     
     def train(self, input_string: Union[str, bytes]):
         if isinstance(input_string, bytes):
             input_string = input_string.decode('latin1')
         
-        # Train the SupporterModel on the input string
         self.train_tokenizer([input_string])
+        
         # Initialize the SupporterModel with the correct vocabulary size
         self.vocab_size = self.tokenizer.get_vocab_size()
         self.supporter_model = SupporterModel(self.hidden_size, self.hidden_size, vocab_size=self.vocab_size, quantize=True, use_rnn=self.use_rnn)
