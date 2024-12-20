@@ -1,12 +1,17 @@
 from typing import List,Union
 import io
-from encoders.arithmeticEncoder import SimpleFrequencyTable, ArithmeticEncoder, ArithmeticDecoder, BitOutputStream, BitInputStream
-from encoders.huffman import HuffmanCoding
+
+import sys
+import os 
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+from arithmeticEncoder import SimpleFrequencyTable, ArithmeticEncoder, ArithmeticDecoder, BitOutputStream, BitInputStream
+from huffman import HuffmanCoding
 import lzma
 import zlib
 import bz2
 import gzip
-from encoders.LZ78Encoder import LZ78Encoder
+from LZ78Encoder import LZ78Encoder
 import numpy as np
 import brotli
 

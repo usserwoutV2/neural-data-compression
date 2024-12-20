@@ -20,8 +20,8 @@ The model is trained on a large dataset and then used to compress any text with 
 #### 2. Dynamic
 No model is trained prior to compressing the text. The model is trained on the text that is going to be compressed. 
 
-#### 3. Hybrid
-Somehow do both of the above.
+#### 3. Adaptive
+The model is trained while compressing. 
 
 ## How to run
 
@@ -42,3 +42,14 @@ Then, the specified cluster should be changed in the `run_static.pbs` script on 
 with model type being either `english` or `dna`. If the DNA model is used, the hyperparameters should manually be changed in `train.py` on line 31.
 
 NOTE: the model will only train if a file named `char_model.keras` doesn't exist in the `VSC_DATA` directory.
+
+
+To run the adaptive method:
+```python
+python ./src/AdaptiveCompressor.py 
+```
+To run the dynamic method:
+```python
+python ./src/DynamicCompressor.py 
+```
+

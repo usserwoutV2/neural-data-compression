@@ -32,7 +32,7 @@ class TokenizedAdaptiveCompressor(Encoder):
         self.current_step = 0
         self.vocab_size = 500
         self.supporter_model = None
-        self.use_rnn= True
+        self.use_rnn= False
         self.sequence_length = 32
         self.optimizer = None
         self.criterion = nn.CrossEntropyLoss()

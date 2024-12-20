@@ -12,6 +12,8 @@ from tqdm import tqdm
 
 from encoders.Encoder import Encoder
 from util.util import set_seed, load_dataset
+from util.stats import show_plot
+
 from util.match_string import match_string
 
 import lzma
@@ -21,6 +23,7 @@ from tokenizers.trainers import BpeTrainer
 from tokenizers.pre_tokenizers import ByteLevel
 from tokenizers.decoders import ByteLevel as ByteLevelDecoder
 from tokenizers.processors import BertProcessing
+
 
 
 class DynamicCompressor(Encoder):
@@ -36,7 +39,7 @@ class DynamicCompressor(Encoder):
         self.tokenizer.decoder = ByteLevelDecoder()
         self.tokenizer.post_processor = BertProcessing(("[CLS]", 1), ("[SEP]", 2))
         self.vocab_size = 0 
-        self.use_rnn=True
+        self.use_rnn=False
         self.alphabet_size = alphabet_size
         self.input_type = input_type
         
@@ -55,19 +58,17 @@ class DynamicCompressor(Encoder):
         self.tokenizer.train_from_iterator(texts, self.trainer)
 
     def _string_to_indices(self, input_string: str) -> List[int]:
-        # Convert a string to a list of indices using the tokenizer
         return self.tokenizer.encode(input_string).ids
 
     def _indices_to_string(self, indices: List[int]) -> str:
-        # Convert a list of indices back to a string using the tokenizer
         return self.tokenizer.decode(indices)
     
     def train(self, input_string: Union[str, bytes]):
         if isinstance(input_string, bytes):
             input_string = input_string.decode('latin1')
         
-        # Train the SupporterModel on the input string
         self.train_tokenizer([input_string])
+        
         # Initialize the SupporterModel with the correct vocabulary size
         self.vocab_size = self.tokenizer.get_vocab_size()
         self.supporter_model = SupporterModel(self.hidden_size, self.hidden_size, vocab_size=self.vocab_size, quantize=True, use_rnn=self.use_rnn)
@@ -141,6 +142,7 @@ class DynamicCompressor(Encoder):
         
         # Use arithmetic coding to further compress the data
         first_char_index = input_indices[0]
+        show_plot(compressed_indices)
         encoded_data = self._encode(compressed_indices, freq, 1 if self.vocab_size < 256 else 2)
 
         return encoded_data, freq, first_char_index, len(compressed_indices)
@@ -234,7 +236,7 @@ input_string = load_dataset("bible", 1_000_000)
 def main():
     set_seed(421)
     print(f"Original data size: {len(input_string)} bytes")
-    #show_plot(input_string)
+    show_plot(input_string)
     
     hidden_size = 58
     learning_rate = 0.01

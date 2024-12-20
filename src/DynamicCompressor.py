@@ -26,7 +26,7 @@ class DynamicCompressor(Encoder):
         self.learning_rate = learning_rate
         self.epochs = epochs
         
-        self.use_rnn = True
+        self.use_rnn = False
         self.input_type = input_type
 
     
@@ -183,19 +183,19 @@ class DynamicCompressor(Encoder):
         
         return compressed_data, freq, first_char_index
 
-encode_method = "arithmetic"
+encode_method = "huffman"
 input_type = "utf8"
-input_string = load_dataset("bible", 10_000)
+input_string = load_dataset("chr20", 1_000_000)
 
 
 def main():
     set_seed(421)
     print(f"Original data size: {len(input_string)} bytes")
-    #show_plot(input_string)
+    show_plot(input_string)
     
     hidden_size = 58
     learning_rate = 0.0100963743367759346
-    epochs = 40
+    epochs = 50
     
     compressor = DynamicCompressor(hidden_size=hidden_size, epochs=epochs, learning_rate=learning_rate, encode_method=encode_method,input_type=input_type)
     
