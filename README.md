@@ -42,3 +42,14 @@ Then, the specified cluster should be changed in the `run_static.pbs` script on 
 with model type being either `english` or `dna`. If the DNA model is used, the hyperparameters should manually be changed in `train.py` on line 31.
 
 NOTE: the model will only train if a file named `char_model.keras` doesn't exist in the `VSC_DATA` directory.
+
+
+To run the adaptive method:
+```python
+python ./src/AdaptiveCompressor.py 
+```
+To run the dynamic method:
+```python
+python ./src/DynamicCompressor.py 
+```
+
