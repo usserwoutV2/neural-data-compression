@@ -28,4 +28,4 @@ export OMP_NUM_THREADS=8
 cd $VSC_DATA
 
 # Run the training script (make sure that _char_model.keras doesn't exist, otherwise the training will be skipped)
-PYTHONPATH="$PYTHONPATH:$PIP_DIR" python ~/ML-project/src/util/static/StaticCompressor.py ML-project/datasets/data/bible_1mb.txt english
+PYTHONPATH="$PYTHONPATH:$PIP_DIR" python ~/ML-project/src/static/StaticCompressor.py ML-project/datasets/data/bible_1mb.txt english
