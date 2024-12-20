@@ -31,46 +31,47 @@ class StaticCompressor:
         return self._translate_from_index(decoded_indices, first_n_characters)
 
     def _translate_to_index(self, input_string: str) -> List[int]:
-    output = []
-    
-    original = {char: 0 for char in self.alphabet}
-    correct = 0
-    model_input_length = 19
-
-    # Prepare input tensor for batch predictions
-    input_indices = [self.char_to_index.get(char, 0) for char in input_string]
-    input_tensor = np.array([input_indices[i-19:i+1] for i in range(model_input_length, len(input_string) - 1)])
-    
-    # Use the model to predict probabilities
-    predictions = self.model.predict(input_tensor)
-    
-    for i, predicted_probs in enumerate(predictions):
-        predicted_indices = np.argsort(predicted_probs)[-self.alphabet_size:][::-1]
-        predicted_chars = [self.index_to_char[idx] for idx in predicted_indices]
+        output = []
         
-        next_char = input_string[i + model_input_length + 1]
-        if next_char in predicted_chars:
-            index = predicted_chars.index(next_char)
-        else:
-            index = self.char_to_index.get(next_char, 99)
-            print(f"Character '{next_char}' not in prediction. Using fallback index {index}.")
-        
-        output.append(index)
-        self.freq[index] += 1
-        if next_char in original:
-            original[next_char] += 1
-        else:
-            original[next_char] = 1
-            print(f"Character '{next_char}' not found in original dictionary. Adding it with count 1.")
-        
-        if next_char == predicted_chars[0]:
-            correct += 1
+        original = {char: 0 for char in self.alphabet}
+        correct = 0
+        model_input_length = 19
 
-    accuracy = correct / (len(input_string) - 1) * 100
-    print(f"Accuracy: {accuracy:.2f}%")
-    print("Stats:", self.freq)
+        # Prepare input tensor for batch predictions
+        input_indices = [self.char_to_index.get(char, 0) for char in input_string]
+        input_tensor = np.array([input_indices[i-19:i+1] for i in range(model_input_length, len(input_string) - 1)])
+        
+        # Use the model to predict probabilities
+        predictions = self.model.predict(input_tensor)
+        
+        for i in range(len(predictions)):
+            predicted_probs = predictions[i]
+            predicted_indices = np.argsort(predicted_probs)[-self.alphabet_size:][::-1]
+            predicted_chars = [self.index_to_char[idx] for idx in predicted_indices]
+            
+            if input_string[i + model_input_length + 1] in predicted_chars:
+                index = predicted_chars.index(input_string[i + model_input_length + 1])
+            else:
+                index = self.char_to_index.get(input_string[i + model_input_length + 1], 99)
+                print(f"Character '{input_string[i + model_input_length + 1]}' not in prediction. Using fallback index {index}.")
+            
+            output.append(index)
+            self.freq[index] += 1
+            if input_string[i + model_input_length + 1] in original:
+                original[input_string[i + model_input_length + 1]] += 1
+            else:
+                original[input_string[i + model_input_length + 1]] = 1
+                print(f"Character '{input_string[i + model_input_length + 1]}' not found in original dictionary. Adding it with count 1.")
+            
+            if input_string[i + model_input_length + 1] == predicted_chars[0]:
+                correct += 1
 
-    return output
+        accuracy = correct / (len(input_string) - 1) * 100
+        print(f"Accuracy: {accuracy:.2f}%")
+        print("Stats:", self.freq)
+        #print("Original:", original)
+        
+        return output
 
     def _translate_from_index(self, input_indices: List[int], first_n_characters: str) -> str:
         output = list(first_n_characters)
@@ -96,7 +97,7 @@ class StaticCompressor:
         bit_output = BitOutputStream(input_stream)
         encoder = ArithmeticEncoder(32, bit_output)
 
-        print(f"Input:   {input_indices}")
+        #print(f"Input:   {input_indices}")
         for number in input_indices:
             encoder.write(freqs, number)
         encoder.finish()
