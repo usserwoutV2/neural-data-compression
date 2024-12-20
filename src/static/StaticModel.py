@@ -6,17 +6,16 @@ import time
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from train import create_and_train_model, load_model, save_model
 
-LEGAL_CHARACTERS = [chr(i) for i in range(32, 127)] + ['\n']  # ASCII characters from space to ~
-
-class EnglishTextModel:
-    def __init__(self, input_string: str = None, model_path: str = os.path.join(os.environ['VSC_DATA'], 'char_model.keras'), lookup_path: str = os.path.join(os.environ['VSC_DATA'], 'char_lookup.pkl')):
+class StaticModel:
+    def __init__(self, legal_characters: List[str], input_string: str = None, model_path: str = '', lookup_path: str = ''):
+		# if the code isn't running on the VSC, these 2 lines under the comment might have to be removed
         model_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../', model_path))
         lookup_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../', lookup_path))
         self.model_path = model_path
         self.lookup_path = lookup_path
         self.model = None
-        self.legal_charactes = LEGAL_CHARACTERS
-        self.char_to_index = {char: idx for idx, char in enumerate(LEGAL_CHARACTERS)}
+        self.legal_characters = legal_characters
+        self.char_to_index = {char: idx for idx, char in enumerate(legal_characters)}
         self.index_to_char = {idx: char for idx, char in self.char_to_index.items()}
         print(model_path)
         if input_string and not os.path.exists(model_path):
@@ -26,7 +25,7 @@ class EnglishTextModel:
 
     def _train_new_model(self, input_string: str):
         print("Training new model...")
-        self.model, self.char_to_index, self.index_to_char = create_and_train_model(input_string)
+        self.model, self.char_to_index, self.index_to_char = create_and_train_model(input_string, legal_characters=legal_characters)
         save_model(self.model, self.char_to_index, self.index_to_char, self.model_path, self.lookup_path)
         print("Model trained and saved.")
 

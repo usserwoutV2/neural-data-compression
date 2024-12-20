@@ -6,4 +6,4 @@ compressed_data.pkl
 **/__pycache__/*
 **/*.pyc
 **/.ds_store
-train_static.o20098900
+**/data/**

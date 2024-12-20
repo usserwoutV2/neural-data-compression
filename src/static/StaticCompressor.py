@@ -9,12 +9,12 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.
 from arithmeticEncoder import SimpleFrequencyTable, ArithmeticEncoder, ArithmeticDecoder, BitOutputStream, BitInputStream
 from DNAModel import DNAModel
 from EnglishTextModel import EnglishTextModel
+from StaticModel import StaticModel
 
 class StaticCompressor:
-    # change the model according to what AI you want to use
-    def __init__(self, model: DNAModel):
+    def __init__(self, model: StaticModel):
         self.model = model
-        self.alphabet = model.legal_charactes
+        self.alphabet = model.legal_characters
         self.alphabet_size = len(self.alphabet)
         print("Alphabet size:", self.alphabet_size)
         self.freq = np.zeros(self.alphabet_size, dtype=int)
@@ -27,51 +27,50 @@ class StaticCompressor:
 
     def decompress(self, compressed_data: bytes, output_size: int, first_n_characters: str) -> str:
         decoded_indices = self._arithmetic_decode(compressed_data, output_size)
-        print("Decoded:", decoded_indices)
+        #print("Decoded:", decoded_indices)
         return self._translate_from_index(decoded_indices, first_n_characters)
 
     def _translate_to_index(self, input_string: str) -> List[int]:
-        output = []
-        
-        original = {char: 0 for char in self.alphabet}
-        correct = 0
-        model_input_length = 19
+    output = []
+    
+    original = {char: 0 for char in self.alphabet}
+    correct = 0
+    model_input_length = 19
 
-        # Prepare input tensor for batch predictions
-        input_indices = [self.char_to_index.get(char, 0) for char in input_string]
-        input_tensor = np.array([input_indices[i-19:i+1] for i in range(model_input_length, len(input_string) - 1)])
+    # Prepare input tensor for batch predictions
+    input_indices = [self.char_to_index.get(char, 0) for char in input_string]
+    input_tensor = np.array([input_indices[i-19:i+1] for i in range(model_input_length, len(input_string) - 1)])
+    
+    # Use the model to predict probabilities
+    predictions = self.model.predict(input_tensor)
+    
+    for i, predicted_probs in enumerate(predictions):
+        predicted_indices = np.argsort(predicted_probs)[-self.alphabet_size:][::-1]
+        predicted_chars = [self.index_to_char[idx] for idx in predicted_indices]
         
-        # Use the model to predict probabilities
-        predictions = self.model.predict(input_tensor)
+        next_char = input_string[i + model_input_length + 1]
+        if next_char in predicted_chars:
+            index = predicted_chars.index(next_char)
+        else:
+            index = self.char_to_index.get(next_char, 99)
+            print(f"Character '{next_char}' not in prediction. Using fallback index {index}.")
         
-        for i in range(len(predictions)):
-            predicted_probs = predictions[i]
-            predicted_indices = np.argsort(predicted_probs)[-self.alphabet_size:][::-1]
-            predicted_chars = [self.index_to_char[idx] for idx in predicted_indices]
-            
-            if input_string[i + model_input_length + 1] in predicted_chars:
-                index = predicted_chars.index(input_string[i + model_input_length + 1])
-            else:
-                index = self.char_to_index.get(input_string[i + model_input_length + 1], 99)
-                print(f"Character '{input_string[i + model_input_length + 1]}' not in prediction. Using fallback index {index}.")
-            
-            output.append(index)
-            self.freq[index] += 1
-            if input_string[i + model_input_length + 1] in original:
-                original[input_string[i + model_input_length + 1]] += 1
-            else:
-                original[input_string[i + model_input_length + 1]] = 1
-                print(f"Character '{input_string[i + model_input_length + 1]}' not found in original dictionary. Adding it with count 1.")
-            
-            if input_string[i + model_input_length + 1] == predicted_chars[0]:
-                correct += 1
+        output.append(index)
+        self.freq[index] += 1
+        if next_char in original:
+            original[next_char] += 1
+        else:
+            original[next_char] = 1
+            print(f"Character '{next_char}' not found in original dictionary. Adding it with count 1.")
+        
+        if next_char == predicted_chars[0]:
+            correct += 1
 
-        accuracy = correct / (len(input_string) - 1) * 100
-        print(f"Accuracy: {accuracy:.2f}%")
-        print("Stats:", self.freq)
-        print("Original:", original)
-        
-        return output
+    accuracy = correct / (len(input_string) - 1) * 100
+    print(f"Accuracy: {accuracy:.2f}%")
+    print("Stats:", self.freq)
+
+    return output
 
     def _translate_from_index(self, input_indices: List[int], first_n_characters: str) -> str:
         output = list(first_n_characters)
@@ -122,24 +121,35 @@ class StaticCompressor:
 
         return decoded_list
 
-def main():
-    dataset_path = os.path.join(os.environ['VSC_HOME'], 'ML-project/datasets/files_to_be_compressed/celegchr_1mb.txt')
+def main(dataset_path: str, model_type: str = 'english'):
+    dataset_path = os.path.join(os.environ['VSC_HOME'], dataset_path)
     with open(dataset_path, 'r') as file:
         input_string = file.read()
-    #model = EnglishTextModel(input_string)
-    model = DNAModel(input_string)
+    if model_type == 'dna':
+        model = DNAModel(input_string)
+    else:
+        model = EnglishTextModel(input_string)
     compressor = StaticCompressor(model)
 
     start_time = time.time()
     compressed_data = compressor.compress(input_string)
     end_time = time.time()
     print(f"Compression time: {end_time - start_time:.2f} seconds")
-    print("Compressed data:", compressed_data)
+    #print("Compressed data:", compressed_data)
 
+    start_time = time.time()
     decompressed_str = compressor.decompress(compressed_data, len(input_string), input_string[:20])
-    print(f"Decompressed string: {decompressed_str}")
-    print(f"Original string:     {input_string}")
+    end_time = time.time()
+    print(f"Decompression time: {end_time - start_time:.2f} seconds")
+    #print(f"Decompressed string: {decompressed_str}")
+    #print(f"Original string:     {input_string}")
     print(f"Strings match: {decompressed_str == input_string}")
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) < 2:
+        print("Usage: python StaticCompressor.py <dataset_path> [model_type]")
+        sys.exit(1)
+    
+    dataset_path = sys.argv[1]
+    model_type = sys.argv[2] if len(sys.argv) > 2 else 'english'
+    main(dataset_path, model_type)

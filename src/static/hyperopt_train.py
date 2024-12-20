@@ -13,7 +13,7 @@ from train import create_sequences, save_model
 tf.keras.mixed_precision.set_global_policy('mixed_float16')
 
 # Define the dataset path
-dataset_path = os.path.join(os.environ['VSC_HOME'], 'ML-project/datasets/data/bsb_small.txt')
+dataset_path = os.path.join(os.environ['VSC_HOME'], 'ML-project/datasets/files_to_be_compressed/chr20_train2.txt')
 
 # Read the dataset
 with open(dataset_path, 'r') as file:
@@ -25,13 +25,13 @@ csv_columns = ['sequence_length', 'epochs', 'batch_size', 'embedding_dimension',
 
 # Define the search space for hyperopt
 space = {
-    'sequence_length': hp.choice('sequence_length', [20, 30, 40]),
-    'epochs': hp.choice('epochs', [5, 6, 8]),
-    'batch_size': hp.choice('batch_size', [128, 256, 512]),
-    'lstm': hp.choice('lstm', [32, 64, 128]),
-    'embedding_dimension': hp.choice('embedding_dimension', [64, 128, 256]),
-    'patience': hp.choice('patience', [8, 10, 15]),
-    'learning_rate': hp.choice('learning_rate', [0.0001, 0.001, 0.005]),
+    'sequence_length': hp.choice('sequence_length', [50, 100, 150]),
+    'epochs': hp.choice('epochs', [10, 20, 30]),
+    'batch_size': hp.choice('batch_size', [64, 128, 256]),
+    'embedding_dimension': hp.choice('embedding_dimension', [32, 64, 128]),
+    'lstm': hp.choice('lstm', [64, 128, 256]),
+    'patience': hp.choice('patience', [5, 10, 15]),
+    'learning_rate': hp.choice('learning_rate', [0.0001, 0.001, 0.01]),
 }
 
 def objective(params):

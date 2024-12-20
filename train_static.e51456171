@@ -1,0 +1,59 @@
+-------------------------------------------------------------------------------
+There are messages associated with the following module(s):
+-------------------------------------------------------------------------------
+
+GCCcore/11.3.0:
+   ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+   + ___________________________________ + + / This module will soon no
+   longer \ + + \ be available on this cluster! / + +
+   ----------------------------------- + + \ ^__^ + + \ (xx)\_______ + +
+   (__)\ )\/\ + + U ||----w | + + || || + + + + Only modules installed with
+   a recent toolchain will still be available + + when this cluster has been
+   migrated to the RHEL 9 operating system. + + Recent toolchains include
+   GCC(core)/12.3.0, gompi/2023a, foss/2023a, + + gfbf/2023a, iimpi/2023a,
+   intel/2023a, and newer versions. + + + + You should update your workflow
+   or job script to use more recent software installations, + + or accept
+   that the modules you currently rely on will soon no longer be available.
+   + + + + To request a more recent version of the software you are using, +
+   + please submit a software installation request via: + +
+   https://www.ugent.be/hpc/en/support/software-installation-request + + + +
+   The HPC-UGent Tier-2 clusters running RHEL 8 will be migrated to RHEL 9.
+   + + For more information, see https://docs.hpc.ugent.be/rhel9/ . + + + +
+   If you have any questions, please contact hpc@ugent.be . + + + ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+-------------------------------------------------------------------------------
+
+-------------------------------------------------------------------------------
+There are messages associated with the following module(s):
+-------------------------------------------------------------------------------
+
+GCCcore/11.3.0:
+   ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+   + ___________________________________ + + / This module will soon no
+   longer \ + + \ be available on this cluster! / + +
+   ----------------------------------- + + \ ^__^ + + \ (xx)\_______ + +
+   (__)\ )\/\ + + U ||----w | + + || || + + + + Only modules installed with
+   a recent toolchain will still be available + + when this cluster has been
+   migrated to the RHEL 9 operating system. + + Recent toolchains include
+   GCC(core)/12.3.0, gompi/2023a, foss/2023a, + + gfbf/2023a, iimpi/2023a,
+   intel/2023a, and newer versions. + + + + You should update your workflow
+   or job script to use more recent software installations, + + or accept
+   that the modules you currently rely on will soon no longer be available.
+   + + + + To request a more recent version of the software you are using, +
+   + please submit a software installation request via: + +
+   https://www.ugent.be/hpc/en/support/software-installation-request + + + +
+   The HPC-UGent Tier-2 clusters running RHEL 8 will be migrated to RHEL 9.
+   + + For more information, see https://docs.hpc.ugent.be/rhel9/ . + + + +
+   If you have any questions, please contact hpc@ugent.be . + + + ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+-------------------------------------------------------------------------------
+
+2024-12-20 19:43:48.817628: I external/local_xla/xla/tsl/cuda/cudart_stub.cc:32] Could not find cuda drivers on your machine, GPU will not be used.
+2024-12-20 19:43:50.482486: I external/local_xla/xla/tsl/cuda/cudart_stub.cc:32] Could not find cuda drivers on your machine, GPU will not be used.
+2024-12-20 19:43:50.814727: E external/local_xla/xla/stream_executor/cuda/cuda_fft.cc:477] Unable to register cuFFT factory: Attempting to register factory for plugin cuFFT when one has already been registered
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+E0000 00:00:1734720231.237702 3473468 cuda_dnn.cc:8310] Unable to register cuDNN factory: Attempting to register factory for plugin cuDNN when one has already been registered
+E0000 00:00:1734720231.402578 3473468 cuda_blas.cc:1418] Unable to register cuBLAS factory: Attempting to register factory for plugin cuBLAS when one has already been registered
+2024-12-20 19:43:52.284352: I tensorflow/core/platform/cpu_feature_guard.cc:210] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+To enable the following instructions: AVX2 FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
+2024-12-20 19:44:20.722199: E external/local_xla/xla/stream_executor/cuda/cuda_driver.cc:152] failed call to cuInit: INTERNAL: CUDA error: Failed call to cuInit: UNKNOWN ERROR (303)
