@@ -11,7 +11,7 @@ import lzma
 from encoders.Encoder import Encoder, AdaptiveEncoder
 from SupporterModel import SupporterModel
 from util.stats import show_plot
-from util.util import  load_dataset
+from util.util import  load_dataset,calculate_entropy
 from util.match_string import match_string
 
 def set_seed(seed: int):
@@ -49,7 +49,7 @@ class AdaptiveCompressor(Encoder):
         self.encode_method = encode_method
         self.vocab_size = 128 if input_type == "utf8" else 256
         self.input_type = input_type
-        self.use_rnn = True
+        self.use_rnn = False
         self.sequence_length = 32 
 
 
@@ -79,7 +79,7 @@ class AdaptiveCompressor(Encoder):
 
         adaptive_encoder = AdaptiveEncoder(self.vocab_size, method=self.encode_method)
         adaptive_encoder.start_encoding()
-
+        
         # Include the initial sequence in the compressed data
         prefix_indices = input_indices[:self.sequence_length]
         prefix = bytes(prefix_indices)
@@ -108,6 +108,7 @@ class AdaptiveCompressor(Encoder):
             for rank in ranks:
                 adaptive_encoder.encode_symbol(rank)
 
+                    
             self.optimizer.zero_grad()
             # output = self.supporter_model(input_tensor)
             # output = output[:, -1, :]
@@ -200,7 +201,7 @@ def main():
     
     print(f"Original data size: {len(input_string)} bytes")
     #show_plot(input_string)
-    
+    print("Entropy",calculate_entropy(input_string))
     start_time = time.time()
 
     compressor = AdaptiveCompressor(hidden_size=64, initial_learning_rate=0.001, min_learning_rate=0.00005, decay_rate=0.9999, encode_method=compression_method, input_type=input_type, batch_size=128)

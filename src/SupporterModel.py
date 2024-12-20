@@ -19,10 +19,15 @@ class SupporterModel(nn.Module):
         self.use_rnn = use_rnn
         
         
-        if use_rnn:    
+        if use_rnn: 
             self.rnn_nn = nn.Sequential(
                 RNNBlock(hidden_size, hidden_size, num_layers=1),
             )
+            
+            # self.rnn_nn = nn.Sequential(
+            #     TransformerBlock(hidden_size, num_heads=2, num_layers=2),  # Ensure num_heads is a factor of hidden_size
+            #     nn.Linear(hidden_size, hidden_size),
+            # ) # SLOW
             
         else:
             self.residual_nn = nn.Sequential(

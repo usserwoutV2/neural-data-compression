@@ -20,8 +20,8 @@ The model is trained on a large dataset and then used to compress any text with 
 #### 2. Dynamic
 No model is trained prior to compressing the text. The model is trained on the text that is going to be compressed. 
 
-#### 3. Hybrid
-Somehow do both of the above.
+#### 3. Adaptive
+The model is trained while compressing. 
 
 ## How to run
 

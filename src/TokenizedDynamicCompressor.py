@@ -12,6 +12,8 @@ from tqdm import tqdm
 
 from encoders.Encoder import Encoder
 from util.util import set_seed, load_dataset
+from util.stats import show_plot
+
 from util.match_string import match_string
 
 import lzma
@@ -21,6 +23,7 @@ from tokenizers.trainers import BpeTrainer
 from tokenizers.pre_tokenizers import ByteLevel
 from tokenizers.decoders import ByteLevel as ByteLevelDecoder
 from tokenizers.processors import BertProcessing
+
 
 
 class DynamicCompressor(Encoder):
@@ -36,7 +39,7 @@ class DynamicCompressor(Encoder):
         self.tokenizer.decoder = ByteLevelDecoder()
         self.tokenizer.post_processor = BertProcessing(("[CLS]", 1), ("[SEP]", 2))
         self.vocab_size = 0 
-        self.use_rnn=True
+        self.use_rnn=False
         self.alphabet_size = alphabet_size
         self.input_type = input_type
         
@@ -141,6 +144,7 @@ class DynamicCompressor(Encoder):
         
         # Use arithmetic coding to further compress the data
         first_char_index = input_indices[0]
+        show_plot(compressed_indices)
         encoded_data = self._encode(compressed_indices, freq, 1 if self.vocab_size < 256 else 2)
 
         return encoded_data, freq, first_char_index, len(compressed_indices)
@@ -234,7 +238,7 @@ input_string = load_dataset("bible", 1_000_000)
 def main():
     set_seed(421)
     print(f"Original data size: {len(input_string)} bytes")
-    #show_plot(input_string)
+    show_plot(input_string)
     
     hidden_size = 58
     learning_rate = 0.01
