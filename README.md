@@ -1,6 +1,7 @@
 # ML-project
 
-
+## Results
+For results, we refer to the [paper](./neural-data-compression.pdf).
 
 ## Idea
 
